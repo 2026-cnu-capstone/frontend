@@ -85,6 +85,26 @@ export function recommendMcpForStrategyStep(stepText: string): string {
   return 'Dissect MCP';
 }
 
+export function sanitizeFilename(input: string): string {
+  const cleaned = String(input || '')
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, '_')
+    .trim();
+  return cleaned || 'untitled';
+}
+
+export function downloadTextFile(filename: string, content: string, mime = 'text/plain;charset=utf-8'): void {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export function nextCaseId(cases: { id: string }[]): string {
   const nums = cases.map(c => {
     const m = String(c.id).match(/DF-\d{4}-(\d+)/);
