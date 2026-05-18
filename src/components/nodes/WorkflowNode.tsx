@@ -3,8 +3,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { Handle, Position, NodeToolbar } from '@xyflow/react';
 import type { NodeProps, Node } from '@xyflow/react';
-import { X, GripVertical } from 'lucide-react';
+import { X, GripVertical, Download } from 'lucide-react';
 import type { WorkflowNodeData } from '@/types';
+import { downloadTextFile, sanitizeFilename } from '@/lib/utils';
 
 export type WorkflowNodeType = Node<WorkflowNodeData, 'workflowNode'>;
 
@@ -41,9 +42,30 @@ const MIN_H = 300;
 const DEFAULT_W = 480;
 const DEFAULT_H = 440;
 
-function DFXMLPanel({ dfxml, onClose }: { dfxml: WorkflowNodeData['dfxml']; onClose: () => void }) {
+function DFXMLPanel({
+  dfxml, nodeIdx, tool, caseTitle, onClose,
+}: {
+  dfxml: WorkflowNodeData['dfxml'];
+  nodeIdx: number;
+  tool: string;
+  caseTitle: string;
+  onClose: () => void;
+}) {
   const [size, setSize] = useState({ w: DEFAULT_W, h: DEFAULT_H });
   const dragRef = useRef<{ startX: number; startY: number; startW: number; startH: number } | null>(null);
+
+  const canDownload = Boolean(dfxml.xml);
+  const handleDownload = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canDownload) return;
+    const slug = sanitizeFilename(caseTitle || 'case');
+    const toolSlug = sanitizeFilename(tool || 'step');
+    downloadTextFile(
+      `${slug}_step${nodeIdx + 1}_${toolSlug}_dfxml.xml`,
+      dfxml.xml,
+      'application/xml;charset=utf-8',
+    );
+  }, [canDownload, caseTitle, dfxml.xml, nodeIdx, tool]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -79,13 +101,28 @@ function DFXMLPanel({ dfxml, onClose }: { dfxml: WorkflowNodeData['dfxml']; onCl
           <span className="text-[11px] font-bold text-sky-400 tracking-wider">DFXML</span>
           <span className="text-[10px] text-slate-500">{dfxml.name}</span>
         </div>
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={e => { e.stopPropagation(); onClose(); }}
-          className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-700 rounded border-none bg-transparent cursor-pointer p-0 transition-colors"
-        >
-          <X size={13} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onMouseDown={e => e.stopPropagation()}
+            onClick={handleDownload}
+            disabled={!canDownload}
+            aria-label="DFXML 추출"
+            title={canDownload ? 'DFXML 추출' : 'DFXML 데이터 없음'}
+            className="h-5 px-1.5 flex items-center gap-1 text-[10px] text-slate-300 hover:text-sky-300 hover:bg-slate-700 rounded border-none bg-transparent cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-slate-300 disabled:hover:bg-transparent"
+          >
+            <Download size={11} />
+            <span>추출</span>
+          </button>
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => { e.stopPropagation(); onClose(); }}
+            aria-label="DFXML 패널 닫기"
+            className="w-5 h-5 flex items-center justify-center text-slate-500 hover:text-slate-200 hover:bg-slate-700 rounded border-none bg-transparent cursor-pointer p-0 transition-colors"
+          >
+            <X size={13} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -105,7 +142,7 @@ function DFXMLPanel({ dfxml, onClose }: { dfxml: WorkflowNodeData['dfxml']; onCl
 }
 
 export default function WorkflowNode({ data }: NodeProps<WorkflowNodeType>) {
-  const { title, tool, nodeStatus, nodeIdx, isSelected, dfxml, onSelect } = data;
+  const { title, tool, nodeStatus, nodeIdx, isSelected, dfxml, caseTitle, onSelect } = data;
 
   const statusStyles = {
     approved: { dot: 'bg-amber-500', border: 'border-amber-500 border-dashed', badgeBg: 'bg-amber-50 text-amber-600', label: '승인됨' },
@@ -142,7 +179,13 @@ export default function WorkflowNode({ data }: NodeProps<WorkflowNodeType>) {
       {/* NodeToolbar: 노드 외부에 렌더링되어 노드 크기·핸들에 영향 없음 */}
       {dfxml && (
         <NodeToolbar isVisible={isSelected} position={Position.Bottom} offset={8}>
-          <DFXMLPanel dfxml={dfxml} onClose={() => onSelect(nodeIdx)} />
+          <DFXMLPanel
+            dfxml={dfxml}
+            nodeIdx={nodeIdx}
+            tool={tool}
+            caseTitle={caseTitle}
+            onClose={() => onSelect(nodeIdx)}
+          />
         </NodeToolbar>
       )}
     </div>
