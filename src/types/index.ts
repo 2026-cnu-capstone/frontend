@@ -13,17 +13,14 @@ export type WorkflowState =
   | 'done';
 
 export type ReportState = 'idle' | 'generating' | 'done';
-export type CaseStatus = 'running' | 'done' | 'idle' | 'failed';
 export type CaseSort = 'dateDesc' | 'dateAsc' | 'titleAsc';
 
 export interface Case {
   id: string;
   title: string;
-  status: CaseStatus;
   analyst: string;
   size: string;
   date: string;
-  progress: number;
 }
 
 export interface ActiveCase {
