@@ -1,16 +1,38 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-::selection { background: rgba(37,99,235,0.18); }
-textarea, input { font-family: 'Inter', system-ui, sans-serif; }
 
-.cp-scroll::-webkit-scrollbar { width: 4px; }
+html { font-feature-settings: 'cv11', 'ss01', 'ss03'; }
+body {
+  background: #fafafa;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.005em;
+}
+
+::selection { background: rgba(37, 99, 235, 0.16); }
+
+:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+textarea, input { font-family: inherit; }
+
+.cp-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .cp-scroll::-webkit-scrollbar-track { background: transparent; }
-.cp-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+.cp-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.cp-scroll:hover::-webkit-scrollbar-thumb { background: #d4d4d8; }
+.cp-scroll::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
 
 /* React Flow overrides */
 .react-flow__attribution { display: none; }
 .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
+.react-flow__edge-path { stroke-linecap: round; }

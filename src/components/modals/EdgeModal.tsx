@@ -1,8 +1,7 @@
 'use client';
 
 import { X, ChevronRight } from 'lucide-react';
-import { NODE_IO } from '@/lib/constants';
-import type { SelectedEdge, PlanStep, IORow } from '@/types';
+import type { SelectedEdge, PlanStep } from '@/types';
 
 interface Props {
   selectedEdge: SelectedEdge;
@@ -10,29 +9,13 @@ interface Props {
   onClose: () => void;
 }
 
-function IORows({ rows }: { rows: IORow[] }) {
-  return (
-    <div className="flex flex-col">
-      {rows.map((row, i) => (
-        <div key={`${row.name}-${i}`} className={`py-1.5 ${i < rows.length - 1 ? 'border-b border-f-border' : ''}`}>
-          <div className="text-[10px] font-mono font-medium text-f-t1">{row.name}</div>
-          <div className="text-[9px] text-f-t3 mt-0.5">
-            {row.type}{row.note ? ` · ${row.note}` : ''}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function EdgeModal({ selectedEdge, editablePlan, onClose }: Props) {
   const { idx, clientX, clientY } = selectedEdge;
-  const srcIo = NODE_IO[idx] ?? NODE_IO[0];
-  const dstIo = NODE_IO[idx + 1] ?? NODE_IO[1];
-  const srcName = editablePlan[idx]?.name;
-  const dstName = editablePlan[idx + 1]?.name;
+  const src = editablePlan[idx];
+  const dst = editablePlan[idx + 1];
+  const edgeLabel = src?.edgeLabel ?? '';
 
-  const mw = 520, mh = 340;
+  const mw = 480, mh = 200;
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
   const top = Math.min(clientY + 14, vh - mh - 10);
@@ -47,9 +30,9 @@ export default function EdgeModal({ selectedEdge, editablePlan, onClose }: Props
       >
         <div className="px-3 py-2 border-b border-f-border flex justify-between items-center">
           <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="font-semibold text-f-t1">{srcName}</span>
+            <span className="font-semibold text-f-t1">{src?.name ?? '-'}</span>
             <ChevronRight size={12} className="text-f-t4" />
-            <span className="font-semibold text-f-t1">{dstName}</span>
+            <span className="font-semibold text-f-t1">{dst?.name ?? '-'}</span>
             <span className="text-[9px] text-f-t4 ml-1">데이터 흐름</span>
           </div>
           <button
@@ -59,19 +42,15 @@ export default function EdgeModal({ selectedEdge, editablePlan, onClose }: Props
             <X size={12} />
           </button>
         </div>
-        <div className="grid grid-cols-2 max-h-[280px]">
-          <div className="px-3 py-2.5 border-r border-f-border overflow-y-auto cp-scroll">
-            <div className="text-[9px] font-bold text-f-t4 tracking-wider mb-1.5">
-              OUTPUT · {srcName}
+        <div className="px-3 py-3">
+          <div className="text-[9px] font-bold text-f-t4 tracking-wider mb-1.5">전달 인자</div>
+          {edgeLabel ? (
+            <div className="bg-f-surface2 border border-f-border rounded px-2.5 py-2 font-mono text-[11px] text-f-t2 break-words">
+              {edgeLabel}
             </div>
-            <IORows rows={srcIo.output} />
-          </div>
-          <div className="px-3 py-2.5 overflow-y-auto cp-scroll">
-            <div className="text-[9px] font-bold text-f-t4 tracking-wider mb-1.5">
-              INPUT · {dstName}
-            </div>
-            <IORows rows={dstIo.input} />
-          </div>
+          ) : (
+            <div className="text-[11px] text-f-t4 italic">에이전트 응답에 엣지 라벨 정보가 없습니다.</div>
+          )}
         </div>
       </div>
     </div>

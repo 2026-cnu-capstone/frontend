@@ -2,14 +2,12 @@
 
 import { useMemo, useEffect } from 'react';
 import { Check, ChevronDown, Trash2 } from 'lucide-react';
-import type { Case, CaseStatus, CaseSort, ActiveCase } from '@/types';
+import type { Case, CaseSort, ActiveCase } from '@/types';
 
 interface Props {
   cases: Case[];
   caseSearchQuery: string;
   setCaseSearchQuery: (v: string) => void;
-  caseStatusFilter: string;
-  setCaseStatusFilter: (v: string) => void;
   caseAnalystFilter: string;
   setCaseAnalystFilter: (v: string) => void;
   caseSort: CaseSort;
@@ -20,19 +18,12 @@ interface Props {
   onDelete: (id: string) => void;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  all: '전체', running: '진행 중', done: '완료', idle: '대기', failed: '실패',
-};
 const SORT_LABEL: Record<string, string> = {
   dateDesc: '최신순', dateAsc: '오래된순', titleAsc: '제목 (가나다)',
-};
-const STATUS_COLOR: Record<CaseStatus, string> = {
-  running: 'text-f-accent', done: 'text-f-success', idle: 'text-f-t4', failed: 'text-f-danger',
 };
 
 export default function CaseListView({
   cases, caseSearchQuery, setCaseSearchQuery,
-  caseStatusFilter, setCaseStatusFilter,
   caseAnalystFilter, setCaseAnalystFilter,
   caseSort, setCaseSort,
   caseFilterMenu, setCaseFilterMenu,
@@ -43,6 +34,15 @@ export default function CaseListView({
     [cases]
   );
 
+  const recentCase = useMemo(() => {
+    const sorted = [...cases].sort((a, b) => {
+      const da = new Date(a.date).getTime() || 0;
+      const db = new Date(b.date).getTime() || 0;
+      return db - da;
+    });
+    return sorted[0] ?? null;
+  }, [cases]);
+
   const filteredCases = useMemo(() => {
     let list = [...cases];
     const q = caseSearchQuery.trim().toLowerCase();
@@ -51,11 +51,9 @@ export default function CaseListView({
         String(c.id).toLowerCase().includes(q) ||
         String(c.title).toLowerCase().includes(q) ||
         String(c.analyst).toLowerCase().includes(q) ||
-        String(c.media || '').toLowerCase().includes(q) ||
         String(c.size || '').toLowerCase().includes(q)
       );
     }
-    if (caseStatusFilter !== 'all') list = list.filter(c => c.status === caseStatusFilter);
     if (caseAnalystFilter !== 'all') list = list.filter(c => c.analyst === caseAnalystFilter);
     list.sort((a, b) => {
       if (caseSort === 'titleAsc') return a.title.localeCompare(b.title, 'ko');
@@ -64,7 +62,7 @@ export default function CaseListView({
       return caseSort === 'dateAsc' ? da - db : db - da;
     });
     return list;
-  }, [cases, caseSearchQuery, caseStatusFilter, caseAnalystFilter, caseSort]);
+  }, [cases, caseSearchQuery, caseAnalystFilter, caseSort]);
 
   useEffect(() => {
     if (!caseFilterMenu) return;
@@ -90,7 +88,7 @@ export default function CaseListView({
         />
       </button>
       {caseFilterMenu === menuKey && (
-        <div className="absolute top-full left-0 mt-1 min-w-[168px] bg-f-surface border border-f-border rounded-md shadow-lg z-80 py-1 max-h-60 overflow-y-auto">
+        <div className="absolute top-full left-0 mt-1 min-w-[168px] bg-f-surface border border-f-border rounded-md shadow-lg z-[80] py-1 max-h-60 overflow-y-auto">
           {children}
         </div>
       )}
@@ -111,13 +109,79 @@ export default function CaseListView({
 
   return (
     <div className="flex-1 flex flex-col bg-f-bg overflow-hidden">
-      {/* Toolbar */}
+      <div className="bg-f-surface border-b border-f-border px-4 py-3 shrink-0">
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-[360px] flex-[2_1_460px]">
+            <div className="text-[10px] font-semibold text-f-t4 tracking-wider uppercase mb-2">
+              케이스 인벤토리
+            </div>
+            <div className="grid grid-cols-3 border border-f-border rounded-md overflow-hidden bg-f-surface2">
+              <div className="min-w-0 h-[64px] px-3 py-2.5 bg-f-surface border-r border-f-border">
+                <span className="block text-[10px] text-f-t4 mb-1 whitespace-nowrap">전체 케이스</span>
+                <span className="block text-xl font-semibold text-f-accent">{cases.length}</span>
+              </div>
+              <div className="min-w-0 h-[64px] px-3 py-2.5 bg-f-surface border-r border-f-border">
+                <span className="block text-[10px] text-f-t4 mb-1 whitespace-nowrap">등록 유형</span>
+                <span className="block text-[13px] font-semibold text-f-t1 pt-1">디스크 이미지</span>
+              </div>
+              <div className="min-w-0 h-[64px] px-3 py-2.5 bg-f-surface">
+                <span className="block text-[10px] text-f-t4 mb-1 whitespace-nowrap">분석관</span>
+                <span className="block text-xl font-semibold text-f-t1">{uniqueAnalysts.length}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-w-[240px] flex-[1_1_260px] border border-f-border rounded-md bg-f-surface2 px-3 py-2.5">
+            <div className="text-[10px] font-semibold text-f-t4 tracking-wider uppercase mb-2">
+              분석관
+            </div>
+            {uniqueAnalysts.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {uniqueAnalysts.map(name => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 rounded border border-f-border bg-f-surface px-2 py-1 text-[11px] text-f-t2"
+                  >
+                    {name}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-f-t4 pt-3">등록된 분석관이 없습니다.</div>
+            )}
+          </div>
+
+          <div className="min-w-[220px] flex-[1_1_240px] border border-f-border rounded-md bg-f-surface2 px-3 py-2.5">
+            <div className="text-[10px] font-semibold text-f-t4 tracking-wider uppercase mb-2">
+              최근 케이스
+            </div>
+            {recentCase ? (
+              <button
+                type="button"
+                onClick={() => onRowClick({ id: recentCase.id, title: recentCase.title })}
+                className="block w-full text-left"
+              >
+                <span className="block text-[13px] font-medium text-f-t1 overflow-hidden text-ellipsis whitespace-nowrap">
+                  {recentCase.title}
+                </span>
+                <span className="flex items-center justify-between gap-2 mt-1">
+                  <span className="text-[11px] font-mono text-f-t4">{recentCase.id}</span>
+                  <span className="text-[11px] text-f-t3">{recentCase.size}</span>
+                </span>
+                <span className="block text-[11px] text-f-t4 mt-2">{recentCase.date}</span>
+              </button>
+            ) : (
+              <div className="text-xs text-f-t4 pt-3">등록된 케이스가 없습니다.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div
         data-case-filter-root
         className={`h-11 bg-f-surface border-b border-f-border flex items-center px-4 gap-2.5 shrink-0 relative ${caseFilterMenu ? 'z-40' : 'z-[1]'}`}
       >
-        {/* Search */}
-        <div className="relative w-56">
+        <div className="relative w-72">
           <svg
             width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"
             className="absolute left-2 top-1/2 -translate-y-1/2"
@@ -126,20 +190,12 @@ export default function CaseListView({
           </svg>
           <input
             type="text"
-            placeholder="케이스 검색 (ID·제목·분석관·매체)…"
+            placeholder="케이스 검색 (ID·제목·분석관·용량)…"
             value={caseSearchQuery}
             onChange={e => setCaseSearchQuery(e.target.value)}
             className="w-full h-7 bg-f-surface2 border border-f-border rounded-[5px] pl-7 pr-2 text-xs text-f-t1 outline-none focus:border-f-accent"
           />
         </div>
-
-        <DropMenu menuKey="status" label={`상태: ${STATUS_LABEL[caseStatusFilter]}`}>
-          <Opt active={caseStatusFilter === 'all'} label="전체" onPick={() => setCaseStatusFilter('all')} />
-          <Opt active={caseStatusFilter === 'running'} label="진행 중" onPick={() => setCaseStatusFilter('running')} />
-          <Opt active={caseStatusFilter === 'done'} label="완료" onPick={() => setCaseStatusFilter('done')} />
-          <Opt active={caseStatusFilter === 'idle'} label="대기" onPick={() => setCaseStatusFilter('idle')} />
-          <Opt active={caseStatusFilter === 'failed'} label="실패" onPick={() => setCaseStatusFilter('failed')} />
-        </DropMenu>
 
         <DropMenu menuKey="analyst" label={`분석관: ${caseAnalystFilter === 'all' ? '전체' : caseAnalystFilter}`}>
           <Opt active={caseAnalystFilter === 'all'} label="전체" onPick={() => setCaseAnalystFilter('all')} />
@@ -153,18 +209,21 @@ export default function CaseListView({
           <Opt active={caseSort === 'dateAsc'} label="오래된순 (생성일)" onPick={() => setCaseSort('dateAsc')} />
           <Opt active={caseSort === 'titleAsc'} label="제목 (가나다)" onPick={() => setCaseSort('titleAsc')} />
         </DropMenu>
+
+        <div className="ml-auto text-[11px] text-f-t4">
+          {cases.length}건 중 <span className="text-f-t2 font-medium">{filteredCases.length}</span>건 표시
+        </div>
       </div>
 
-      {/* Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="bg-f-surface border-b border-f-border sticky top-0 z-10">
-              {['케이스 ID', '제목', '분석관', '생성일', ''].map((h, i) => (
+              {['케이스 ID', '제목', '용량', '분석관', '생성일', ''].map((h, i) => (
                 <th
                   key={i}
                   className="h-[34px] px-3.5 text-[10px] font-semibold text-f-t4 tracking-wider uppercase whitespace-nowrap"
-                  style={{ width: i === 0 ? 148 : i === 2 ? 88 : i === 3 ? 100 : i === 4 ? 44 : 'auto' }}
+                  style={{ width: i === 0 ? 148 : i === 2 ? 90 : i === 3 ? 88 : i === 4 ? 100 : i === 5 ? 44 : 'auto' }}
                 >
                   {h}
                 </th>
@@ -174,7 +233,7 @@ export default function CaseListView({
           <tbody>
             {filteredCases.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-9 px-3.5 text-center text-sm text-f-t4">
+                <td colSpan={6} className="py-9 px-3.5 text-center text-sm text-f-t4">
                   검색·필터 조건에 맞는 케이스가 없습니다.
                 </td>
               </tr>
@@ -187,6 +246,7 @@ export default function CaseListView({
                 >
                   <td className="px-3.5 font-mono text-[11px] text-f-accent font-medium">{c.id}</td>
                   <td className="px-3.5 text-[13px] text-f-t1 max-w-xs overflow-hidden text-ellipsis whitespace-nowrap">{c.title}</td>
+                  <td className="px-3.5 text-xs text-f-t4">{c.size}</td>
                   <td className="px-3.5 text-xs text-f-t3">{c.analyst}</td>
                   <td className="px-3.5 text-xs text-f-t4">{c.date}</td>
                   <td className="px-2">

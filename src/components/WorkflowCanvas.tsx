@@ -17,9 +17,19 @@ import {
 import '@xyflow/react/dist/style.css';
 import WorkflowNode, { type WorkflowNodeType } from './nodes/WorkflowNode';
 import type { PlanStep, WorkflowNodeData, SelectedEdge } from '@/types';
-import { NODE_DFXML, NODE_IO } from '@/lib/constants';
 
 const nodeTypes: NodeTypes = { workflowNode: WorkflowNode };
+
+// tailwind.config.ts의 colors.f.* 와 동기화 — React Flow는 색상 props로 raw 문자열을 요구하므로
+// Tailwind 클래스 대신 토큰 값을 한 곳에서 참조한다.
+const CANVAS_COLORS = {
+  dot: '#e4e4e7',           // f-dot
+  miniMapBg: '#ffffff',     // f-surface
+  miniMapBorder: '#e4e4e7', // f-border
+  edgeIdle: '#d4d4d8',      // f-border2
+  edgeActive: '#2563eb',    // f-accent
+  edgeLabel: '#6b7280',     // f-t3
+} as const;
 
 interface Props {
   editablePlan: PlanStep[];
@@ -45,18 +55,16 @@ export default function WorkflowCanvas({
   );
 
   const buildNodeData = useCallback(
-    (item: PlanStep, i: number) => ({
+    (item: PlanStep, i: number): WorkflowNodeData => ({
       title: item.name,
       tool: item.mcp,
       nodeStatus: getNodeStatus(i),
       nodeIdx: i,
       isSelected: selectedNode === i,
-      dfxml: dfxmlFragments?.[i]
-        ? { name: item.name, xml: dfxmlFragments[i] }
-        : (NODE_DFXML[i] ?? NODE_DFXML[0]),
+      dfxml: { name: item.name, xml: dfxmlFragments?.[i] ?? '' },
       onSelect: onSelectNode,
     }),
-    [getNodeStatus, selectedNode, onSelectNode]
+    [getNodeStatus, selectedNode, onSelectNode, dfxmlFragments]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNodeType>([]);
@@ -96,19 +104,18 @@ export default function WorkflowCanvas({
   // 엣지 갱신
   useEffect(() => {
     setEdges(
-      editablePlan.slice(0, -1).map((_, i) => {
+      editablePlan.slice(0, -1).map((step, i) => {
         const isActive = workflowState === 'running' && i <= activeStep;
-        const io = NODE_IO[i];
         return {
           id: `edge-${i}`,
           source: `node-${i}`,
           target: `node-${i + 1}`,
           type: 'smoothstep',
           animated: isActive,
-          label: io?.edgeLabel ?? '',
-          labelStyle: { fontSize: 9, fill: '#9ca3af' },
-          style: { stroke: isActive ? '#2563eb' : '#d1d5db', strokeWidth: 1.5 },
-          markerEnd: { type: 'arrowclosed' as const, color: isActive ? '#2563eb' : '#d1d5db' },
+          label: step.edgeLabel ?? '',
+          labelStyle: { fontSize: 9, fill: CANVAS_COLORS.edgeLabel },
+          style: { stroke: isActive ? CANVAS_COLORS.edgeActive : CANVAS_COLORS.edgeIdle, strokeWidth: 1.5 },
+          markerEnd: { type: 'arrowclosed' as const, color: isActive ? CANVAS_COLORS.edgeActive : CANVAS_COLORS.edgeIdle },
           data: { idx: i },
         };
       })
@@ -150,9 +157,9 @@ export default function WorkflowCanvas({
       nodesConnectable={false}
       proOptions={{ hideAttribution: true }}
     >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d4d4d8" />
+      <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={CANVAS_COLORS.dot} />
       <MiniMap
-        style={{ background: '#fff', border: '1px solid #e4e4e7', borderRadius: 4 }}
+        style={{ background: CANVAS_COLORS.miniMapBg, border: `1px solid ${CANVAS_COLORS.miniMapBorder}`, borderRadius: 4 }}
         nodeColor="#e0e7ff"
         maskColor="rgba(0,0,0,0.04)"
       />
