@@ -240,12 +240,13 @@ export default function ForensicApp() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="h-10 bg-f-surface border-b border-f-border flex items-center justify-between px-4 shrink-0 select-none">
           <div className="flex items-center text-xs">
-            <span
-              className="text-f-t3 cursor-pointer hover:text-f-t1 transition-colors"
+            <button
+              type="button"
+              className="text-f-t3 cursor-pointer hover:text-f-t1 transition-colors bg-transparent border-0 p-0 font-inherit text-xs"
               onClick={() => setCurrentView('list')}
             >
               케이스 목록
-            </span>
+            </button>
             {currentView === 'builder' && (
               <>
                 <ChevronRight size={13} className="text-f-border2 mx-1" />

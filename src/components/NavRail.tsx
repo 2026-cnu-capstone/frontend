@@ -18,20 +18,30 @@ function NavItem({
   onClick?: () => void;
   title?: string;
 }) {
+  const disabled = !onClick;
   return (
-    <div
-      title={title}
+    <button
+      type="button"
+      title={title ?? (disabled ? '준비 중' : undefined)}
+      aria-label={title}
+      aria-current={active ? 'page' : undefined}
+      aria-disabled={disabled || undefined}
+      disabled={disabled}
       onClick={onClick}
-      className={`relative w-full h-10 flex items-center justify-center
-        ${onClick ? 'cursor-pointer' : ''}
-        ${active ? 'text-f-accent' : 'text-f-t4 hover:text-f-t3'}
+      className={`relative w-full h-10 flex items-center justify-center bg-transparent border-0 p-0
+        ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}
+        ${active ? 'text-f-accent' : 'text-f-t4'}
+        ${!disabled && !active ? 'hover:text-f-t3' : ''}
         transition-colors`}
     >
       {active && (
-        <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-f-accent rounded-r-sm" />
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-2 bottom-2 w-0.5 bg-f-accent rounded-r-sm"
+        />
       )}
-      <div className="p-1.5">{icon}</div>
-    </div>
+      <span className="p-1.5">{icon}</span>
+    </button>
   );
 }
 
