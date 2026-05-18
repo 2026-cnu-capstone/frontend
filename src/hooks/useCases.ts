@@ -6,11 +6,9 @@ function coerceCase(raw: Record<string, unknown>): Case {
   return {
     id: String(raw.id ?? ''),
     title: String(raw.title ?? raw.name ?? ''),
-    status: (raw.status as Case['status']) ?? 'idle',
     analyst: String(raw.analyst ?? '-'),
     size: String(raw.size ?? '-'),
     date: String(raw.date ?? new Date().toISOString().slice(0, 10)),
-    progress: typeof raw.progress === 'number' ? raw.progress : 0,
   };
 }
 
