@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import { downloadTextFile, sanitizeFilename } from '@/lib/utils';
 import type { ActiveCase, ReportState } from '@/types';
 
 export interface TaskResult {
@@ -75,15 +76,18 @@ export function useReportRun() {
       if (reportData?.report) {
         lines.push(`${reportData.summary ? '3' : '2'}. 상세 보고서`, '-'.repeat(30), reportData.report);
       }
-      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${activeCase.id}_forensic_report.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadTextFile(`${activeCase.id}_forensic_report.txt`, lines.join('\n'));
+    },
+    [reportData]
+  );
+
+  const downloadDfxml = useCallback(
+    (activeCase: ActiveCase) => {
+      const xml = reportData?.dfxml;
+      if (!xml) return;
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      const slug = sanitizeFilename(activeCase.title || activeCase.id);
+      downloadTextFile(`${slug}_${date}_dfxml.xml`, xml, 'application/xml;charset=utf-8');
     },
     [reportData]
   );
@@ -109,6 +113,7 @@ export function useReportRun() {
     handleReportReady,
     approveReport,
     downloadReport,
+    downloadDfxml,
     reset,
   };
 }

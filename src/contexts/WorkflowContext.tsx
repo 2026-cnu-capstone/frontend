@@ -65,6 +65,7 @@ export interface WorkflowContextValue {
   onApproveReport: () => void;
   onOpenMcpModal: (idx: number) => void;
   onDownloadReport?: () => void;
+  onDownloadDfxml?: () => void;
   onEvidenceFilePick: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 

@@ -11,7 +11,7 @@ export default function DoneSummaryPanel() {
     diskImagePath, diskImageCheck,
     taskResults, elapsedTime,
     reportState, setShowReportViewer,
-    onApproveReport, onDownloadReport,
+    onApproveReport, onDownloadReport, onDownloadDfxml,
   } = useWorkflowContext();
 
   if (workflowState !== 'done') return null;
@@ -177,6 +177,15 @@ export default function DoneSummaryPanel() {
                 <Download size={12} /> 보고서 다운로드
               </button>
             </div>
+            <button
+              type="button"
+              onClick={onDownloadDfxml}
+              disabled={!onDownloadDfxml}
+              aria-label="DFXML 다운로드"
+              className="h-[30px] bg-f-surface2 border border-f-border2 rounded text-f-t2 text-[11px] font-medium cursor-pointer flex items-center justify-center gap-1 hover:bg-f-border transition-colors disabled:opacity-50 disabled:cursor-default"
+            >
+              <Download size={12} /> DFXML 다운로드
+            </button>
           </div>
         </div>
       )}

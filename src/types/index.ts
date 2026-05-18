@@ -83,6 +83,7 @@ export interface WorkflowNodeData {
   nodeIdx: number;
   isSelected: boolean;
   dfxml: DfxmlNode;
+  caseTitle: string;
   onSelect: (idx: number) => void;
   [key: string]: unknown; // required by @xyflow/react Node<Data> constraint
 }

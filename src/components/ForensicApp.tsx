@@ -108,6 +108,10 @@ export default function ForensicApp() {
     () => reportRun.downloadReport(activeCase, submittedPrompt),
     [reportRun, activeCase, submittedPrompt]
   );
+  const handleDownloadDfxml = useCallback(
+    () => reportRun.downloadDfxml(activeCase),
+    [reportRun, activeCase]
+  );
 
   const handleSelectNode = useCallback((idx: number) => {
     setSelectedNode(prev => prev === idx ? null : idx);
@@ -183,6 +187,7 @@ export default function ForensicApp() {
     onApproveReport: handleApproveReport,
     onOpenMcpModal: openMcpModal,
     onDownloadReport: handleDownloadReport,
+    onDownloadDfxml: handleDownloadDfxml,
     onEvidenceFilePick: e => {
       const file = e.target.files?.[0];
       if (file) setAttachedFile({ name: file.name });
@@ -308,6 +313,7 @@ export default function ForensicApp() {
                   onSelectNode={handleSelectNode}
                   onEdgeClick={setSelectedEdge}
                   dfxmlFragments={workflow.nodeDfxmlFragments}
+                  caseTitle={activeCase.title}
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
