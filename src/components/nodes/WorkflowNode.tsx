@@ -123,19 +123,19 @@ export default function WorkflowNode({ data }: NodeProps<WorkflowNodeType>) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
 
-      <div className="px-2.5 py-2 border-b border-gray-200 flex justify-between items-center">
+      <div className="px-2.5 py-2 border-b border-f-border flex justify-between items-center">
         <div className="flex items-center gap-1.5">
           <div className={`w-1.5 h-1.5 rounded-full ${s.dot} shrink-0`} />
-          <span className="text-[12px] font-medium text-gray-900">{title}</span>
+          <span className="text-[12px] font-medium text-f-t1">{title}</span>
         </div>
         <span className={`px-1.5 py-[2px] rounded text-[9px] font-semibold ${s.badgeBg}`}>{s.label}</span>
       </div>
       <div className="px-2.5 py-[7px]">
-        <span className="text-[10px] font-mono text-gray-400">{tool}</span>
+        <span className="text-[10px] font-mono text-f-t4">{tool}</span>
       </div>
       {nodeStatus === 'running' && (
-        <div className="h-0.5 bg-gray-100">
-          <div className="h-full w-3/5 bg-blue-600" />
+        <div className="h-0.5 bg-f-surface2">
+          <div className="h-full w-3/5 bg-f-accent" />
         </div>
       )}
 

@@ -35,6 +35,36 @@ export default function ReportViewerModal({
   const report = reportData?.report || '';
   const results = taskResults || [];
 
+  const handleDownload = () => {
+    const lines = [
+      '디지털 포렌식 분석 보고서',
+      '='.repeat(50),
+      `생성일: ${new Date().toISOString().slice(0, 10)}`,
+      '',
+      '1. 사건 개요',
+      '-'.repeat(30),
+      submittedPrompt || '(없음)',
+      '',
+      '2. 분석 환경',
+      '-'.repeat(30),
+      `디스크 이미지: ${diskImagePath || '(미지정)'}`,
+      `분석 도구: ${editablePlan.map(p => p.mcp).filter((v, i, a) => a.indexOf(v) === i).join(', ')}`,
+      `분석 단계: ${editablePlan.length}단계`,
+      '',
+    ];
+    if (summary) lines.push('3. 분석 요약', '-'.repeat(30), summary, '');
+    if (report) lines.push(`${summary ? '4' : '3'}. 상세 보고서`, '-'.repeat(30), report);
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `forensic_report_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center"
@@ -168,7 +198,10 @@ export default function ReportViewerModal({
           >
             닫기
           </button>
-          <button className="h-[30px] px-3.5 bg-f-accent border-none rounded text-white text-[11px] font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors">
+          <button
+            onClick={handleDownload}
+            className="h-[30px] px-3.5 bg-f-accent border-none rounded text-white text-[11px] font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
+          >
             <Download size={12} /> 보고서 다운로드
           </button>
         </div>
