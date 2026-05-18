@@ -23,13 +23,11 @@ export const restHandlers = [
     const created = {
       id,
       title: body.name ?? '새 케이스',
-      status: 'idle',
       analyst: '-',
       size: '-',
       date: new Date().toISOString().slice(0, 10),
-      progress: 0,
     };
-    MOCK_CASES.unshift(created as any);
+    MOCK_CASES.unshift(created);
     return HttpResponse.json(created);
   }),
 
