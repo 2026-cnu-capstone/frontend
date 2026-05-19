@@ -243,49 +243,123 @@ export default function ForensicApp() {
       <NavRail currentView={currentView} onViewChange={setCurrentView} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-10 bg-f-surface border-b border-f-border flex items-center justify-between px-4 shrink-0 select-none">
-          <div className="flex items-center text-xs">
-            <button
-              type="button"
-              className="text-f-t3 cursor-pointer hover:text-f-t1 transition-colors bg-transparent border-0 p-0 font-inherit text-xs"
-              onClick={() => setCurrentView('list')}
-            >
-              케이스 목록
-            </button>
-            {currentView === 'builder' && (
-              <>
-                <ChevronRight size={13} className="text-f-border2 mx-1" />
-                <span className="text-f-t3 font-mono text-[11px]">{activeCase.id}</span>
-                <ChevronRight size={13} className="text-f-border2 mx-1" />
-                <span className="text-f-t1 font-medium">{activeCase.title}</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2.5">
-            {currentView === 'list' && (
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            GLOBAL TOPBAR
+            케이스 목록 뷰: 인벤토리 레이블 + 새 케이스 버튼
+            워크플로 뷰: 브레드크럼 + 케이스 메타 스트립 + 액션 버튼
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <header className="bg-f-surface border-b border-f-border shrink-0 select-none">
+          {currentView === 'list' ? (
+            /* ── 목록 뷰 헤더: 얇은 h-10 구분 바 ── */
+            <div className="h-10 flex items-center justify-between px-6">
+              <span className="text-[10px] font-semibold tracking-[0.12em] uppercase text-f-t4">
+                케이스 인벤토리
+              </span>
               <button
                 type="button"
                 onClick={() => { setNewCaseTitle(''); setNewCaseModalOpen(true); }}
-                className="h-7 px-3 bg-f-accent border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
+                aria-label="새 케이스 만들기"
+                className="h-7 px-3 bg-f-accent border-none rounded-md text-white text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:bg-blue-700 transition-colors focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-offset-1 focus-visible:outline-none"
               >
-                <Plus size={13} /> 새 케이스
+                <Plus size={12} />
+                새 케이스
               </button>
-            )}
-            {currentView === 'builder' && workflow.workflowState === 'approved' && (
-              <button
-                onClick={handleRunWorkflow}
-                className="h-7 px-3 bg-f-accent border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
-              >
-                <Play size={12} fill="currentColor" /> 워크플로 실행
-              </button>
-            )}
-            {currentView === 'builder' && workflow.workflowState === 'running' && (
-              <button onClick={workflow.pauseWorkflow} className="h-7 px-3 bg-f-warn border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1">
-                <Pause size={12} fill="currentColor" /> 일시정지
-              </button>
-            )}
-          </div>
-        </div>
+            </div>
+          ) : (
+            /* ── 워크플로 뷰 헤더: 케이스 메타 + 액션 ── */
+            /* 항목 7: px-4(좁음)→px-6(넓음), gap을 줄이고 min-w-0 철저 적용 */
+            <div className="flex items-center justify-between px-4 lg:px-6 py-3 gap-2 lg:gap-4">
+
+              {/* 좌: 브레드크럼 + 케이스 메타 */}
+              <div className="flex items-center gap-2 lg:gap-3 min-w-0 overflow-hidden">
+
+                {/* 브레드크럼 — 항목 7: 1024px 이하에서 "목록"으로 축약 */}
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('list')}
+                    aria-label="케이스 목록으로 돌아가기"
+                    className="text-[11px] text-f-t3 hover:text-f-t1 transition-colors bg-transparent border-0 p-0 cursor-pointer font-medium whitespace-nowrap"
+                  >
+                    <span className="hidden lg:inline">케이스 목록</span>
+                    <span className="lg:hidden">목록</span>
+                  </button>
+                  <ChevronRight size={12} className="text-f-border2 shrink-0" aria-hidden />
+                  {/* 제목 — 1024px 이하에서 max-w 좁힘 */}
+                  <span
+                    className="text-[11px] font-semibold text-f-t1 truncate max-w-[120px] sm:max-w-[180px] lg:max-w-[240px]"
+                    title={activeCase.title}
+                  >
+                    {activeCase.title}
+                  </span>
+                </div>
+
+                {/* 구분선 + 메타 스트립 — 항목 7: 1024px 이하에서 숨김 */}
+                <div className="hidden lg:flex items-center gap-3 min-w-0">
+                  <div className="w-px h-8 bg-f-border shrink-0" aria-hidden />
+
+                  <dl className="flex items-center gap-3 min-w-0">
+                    {/* Case ID chip */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <dt className="text-[9px] tracking-[0.1em] uppercase text-f-t4 font-medium leading-none">
+                        케이스 ID
+                      </dt>
+                      <dd>
+                        <span className="inline-flex items-center h-5 px-2 rounded bg-f-surface2 border border-f-border text-[10px] font-mono text-f-t3 tracking-wide">
+                          {activeCase.id || '—'}
+                        </span>
+                      </dd>
+                    </div>
+
+                    <div className="w-px h-6 bg-f-border shrink-0" aria-hidden />
+
+                    {/* 워크플로 상태 */}
+                    <div className="flex flex-col gap-0.5 shrink-0">
+                      <dt className="text-[9px] tracking-[0.1em] uppercase text-f-t4 font-medium leading-none">
+                        상태
+                      </dt>
+                      <dd>
+                        <WorkflowStateBadge state={workflow.workflowState} />
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* 항목 7: 1024px 미만에서만 상태 배지 인라인 표시 (ID chip 생략) */}
+                <div className="flex lg:hidden items-center shrink-0">
+                  <WorkflowStateBadge state={workflow.workflowState} />
+                </div>
+              </div>
+
+              {/* 우: 액션 버튼 — 항목 7: 1024px 미만에서 아이콘만 */}
+              <div className="flex items-center gap-2 shrink-0">
+                {workflow.workflowState === 'approved' && (
+                  <button
+                    type="button"
+                    onClick={handleRunWorkflow}
+                    aria-label="워크플로 실행"
+                    className="h-7 px-2 lg:px-3 bg-f-accent border-none rounded-md text-white text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:bg-blue-700 transition-colors focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-offset-1 focus-visible:outline-none"
+                  >
+                    <Play size={11} fill="currentColor" />
+                    <span className="hidden lg:inline">워크플로 실행</span>
+                  </button>
+                )}
+                {workflow.workflowState === 'running' && (
+                  <button
+                    type="button"
+                    onClick={workflow.pauseWorkflow}
+                    aria-label="워크플로 일시정지"
+                    className="h-7 px-2 lg:px-3 bg-f-warn border-none rounded-md text-white text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:opacity-90 transition-opacity focus-visible:ring-2 focus-visible:ring-f-warn focus-visible:ring-offset-1 focus-visible:outline-none"
+                  >
+                    <Pause size={11} fill="currentColor" />
+                    <span className="hidden lg:inline">일시정지</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </header>
 
         {currentView === 'list' ? (
           <CaseListView
@@ -303,35 +377,32 @@ export default function ForensicApp() {
           />
         ) : (
           <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* 캔버스 영역 — 빈 상태·로딩 오버레이는 WorkflowCanvas 내부에서 처리 */}
             <div className="flex-1 relative overflow-hidden bg-f-canvas-bg">
-              {isCanvasVisible ? (
-                <WorkflowCanvas
-                  editablePlan={workflow.editablePlan}
-                  workflowState={workflow.workflowState}
-                  activeStep={workflow.activeStep}
-                  selectedNode={selectedNode}
-                  onSelectNode={handleSelectNode}
-                  onEdgeClick={setSelectedEdge}
-                  dfxmlFragments={workflow.nodeDfxmlFragments}
-                  caseTitle={activeCase.title}
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-f-t4 text-xs mb-1">워크플로 캔버스</div>
-                    <div className="text-f-t4 text-[11px]">분석 계획을 승인하면 노드 그래프가 표시됩니다.</div>
-                  </div>
-                </div>
-              )}
+              <WorkflowCanvas
+                editablePlan={isCanvasVisible ? workflow.editablePlan : []}
+                workflowState={workflow.workflowState}
+                activeStep={workflow.activeStep}
+                selectedNode={selectedNode}
+                onSelectNode={handleSelectNode}
+                onEdgeClick={setSelectedEdge}
+                dfxmlFragments={workflow.nodeDfxmlFragments}
+                caseTitle={activeCase.title}
+              />
             </div>
 
+            {/* 드래그 스플리터 */}
             <div
-              className="w-[3px] bg-f-border hover:bg-f-accent cursor-col-resize shrink-0 z-10 transition-colors"
+              role="separator"
+              aria-label="패널 너비 조절"
+              aria-orientation="vertical"
+              className="w-[3px] bg-f-border hover:bg-f-accent cursor-col-resize shrink-0 z-10 transition-colors focus-visible:outline-none focus-visible:bg-f-accent"
               onMouseDown={startSplitterDrag}
             />
 
+            {/* 분석 패널 */}
             <div
-              className="border-l border-f-border flex flex-col min-h-0 shrink-0"
+              className="border-l border-f-border flex flex-col min-h-0 shrink-0 bg-f-surface"
               style={{ width: panelWidth }}
             >
               <WorkflowProvider value={workflowContextValue}>
@@ -342,5 +413,31 @@ export default function ForensicApp() {
         )}
       </div>
     </div>
+  );
+}
+
+/* ── 워크플로 상태 배지 ── */
+function WorkflowStateBadge({ state }: { state: string }) {
+  const MAP: Record<string, { label: string; cls: string }> = {
+    idle:                   { label: '대기',       cls: 'text-f-t4 bg-f-surface2 border-f-border' },
+    plan_thinking:          { label: '계획 생성',   cls: 'text-f-warn bg-amber-50 border-amber-200' },
+    strategy_review:        { label: '전략 검토',   cls: 'text-f-accent bg-f-accent-light border-blue-200' },
+    strategy_edit_request:  { label: '전략 수정 요청', cls: 'text-f-warn bg-amber-50 border-amber-200' },
+    strategy_editing:       { label: '전략 편집',   cls: 'text-f-warn bg-amber-50 border-amber-200' },
+    mcp_plan_thinking:      { label: 'MCP 계획',   cls: 'text-f-accent bg-f-accent-light border-blue-200' },
+    plan_requested:         { label: '계획 검토',   cls: 'text-f-accent bg-f-accent-light border-blue-200' },
+    rejected:               { label: '반려',       cls: 'text-f-danger bg-red-50 border-red-200' },
+    editing:                { label: '편집 중',     cls: 'text-f-warn bg-amber-50 border-amber-200' },
+    approved:               { label: '승인됨',      cls: 'text-f-success bg-green-50 border-green-200' },
+    running:                { label: '실행 중',     cls: 'text-f-success bg-green-50 border-green-200' },
+    done:                   { label: '완료',        cls: 'text-f-t2 bg-f-surface2 border-f-border2' },
+  };
+  const entry = MAP[state] ?? { label: state, cls: 'text-f-t4 bg-f-surface2 border-f-border' };
+  return (
+    <span
+      className={`inline-flex items-center h-5 px-2 rounded border text-[10px] font-medium tracking-wide leading-none ${entry.cls}`}
+    >
+      {entry.label}
+    </span>
   );
 }
