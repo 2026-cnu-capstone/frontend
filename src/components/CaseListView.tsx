@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useEffect } from 'react';
-import { Check, ChevronDown, Trash2, FolderOpen, Search } from 'lucide-react';
-import type { Case, CaseSort, ActiveCase } from '@/types';
+import { Check, ChevronDown, Trash2, FolderOpen, Search, Plus } from 'lucide-react';
+import type { Case, CaseSort, ActiveCase, WorkflowState } from '@/types';
 
 interface Props {
   cases: Case[];
@@ -16,15 +16,49 @@ interface Props {
   setCaseFilterMenu: (v: string | null) => void;
   onRowClick: (c: ActiveCase) => void;
   onDelete: (id: string) => void;
+  onCreate?: () => void;
 }
 
-const SORT_LABEL: Record<string, string> = {
+const SORT_LABEL: Record<CaseSort, string> = {
   dateDesc: '최신순',
   dateAsc: '오래된순',
   titleAsc: '제목순',
+  activityDesc: '활동순',
 };
 
-/** 케이스 ID에서 숫자 시퀀스만 추출 (예: DF-2026-0425 → 0425) */
+/** 워크플로 상태 → 뱃지 라벨/색상 토큰 매핑 */
+const STATE_BADGE: Record<
+  WorkflowState,
+  { label: string; tone: 'idle' | 'progress' | 'success' | 'danger' | 'thinking' }
+> = {
+  idle: { label: '대기', tone: 'idle' },
+  plan_thinking: { label: '플랜 생성', tone: 'thinking' },
+  strategy_review: { label: '전략 검토', tone: 'thinking' },
+  strategy_edit_request: { label: '전략 수정', tone: 'thinking' },
+  strategy_editing: { label: '전략 편집', tone: 'thinking' },
+  mcp_plan_thinking: { label: 'MCP 계획', tone: 'thinking' },
+  plan_requested: { label: '계획 요청', tone: 'thinking' },
+  rejected: { label: '거부', tone: 'danger' },
+  editing: { label: '편집 중', tone: 'thinking' },
+  approved: { label: '승인', tone: 'progress' },
+  running: { label: '실행 중', tone: 'progress' },
+  done: { label: '완료', tone: 'success' },
+};
+
+const TONE_CLASS: Record<string, string> = {
+  idle:
+    'bg-f-surface2 border-f-border text-f-t3',
+  progress:
+    'bg-f-accent-light border-f-accent/30 text-f-accent',
+  success:
+    'bg-green-50 border-green-200 text-f-success dark:bg-green-950/40 dark:border-green-900/50',
+  danger:
+    'bg-red-50 border-red-200 text-f-danger dark:bg-red-950/40 dark:border-red-900/50',
+  thinking:
+    'bg-amber-50 border-amber-200 text-f-warn dark:bg-amber-950/40 dark:border-amber-900/50',
+};
+
+/** 케이스 ID에서 숫자 시퀀스만 추출 */
 function shortSeq(id: string): string {
   const parts = id.split('-');
   return parts[parts.length - 1] ?? id;
@@ -40,6 +74,36 @@ function fmtDate(iso: string): string {
   return `${yy}.${mm}.${dd}`;
 }
 
+/** 상대 시간 표시: "방금", "12분 전", "3시간 전", "2일 전", 그 외 YY.MM.DD */
+function fmtRelative(iso?: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return fmtDate(iso);
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return '방금';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}분 전`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}시간 전`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}일 전`;
+  return fmtDate(iso);
+}
+
+/** 분석관 이름에서 아바타용 이니셜 추출 (한글은 첫 글자, 영문은 첫 두 글자) */
+function initials(name: string): string {
+  const n = name.trim();
+  if (!n) return '?';
+  // 한글 등 비-라틴 문자가 포함된 경우: 첫 글자
+  if (/[^\x00-\x7F]/.test(n)) return n[0];
+  // 영문: 단어별 첫 글자 최대 2개
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
 export default function CaseListView({
   cases,
   caseSearchQuery,
@@ -52,6 +116,7 @@ export default function CaseListView({
   setCaseFilterMenu,
   onRowClick,
   onDelete,
+  onCreate,
 }: Props) {
   /* ── 파생 데이터 ── */
   const uniqueAnalysts = useMemo(
@@ -64,11 +129,20 @@ export default function CaseListView({
 
   const recentDate = useMemo(() => {
     const ts = cases
-      .map((c) => new Date(c.date).getTime())
+      .map((c) => new Date(c.lastActivityAt ?? c.date).getTime())
       .filter((n) => Number.isFinite(n) && n > 0);
     if (ts.length === 0) return null;
-    return new Date(Math.max(...ts)).toISOString().slice(0, 10);
+    return new Date(Math.max(...ts)).toISOString();
   }, [cases]);
+
+  const runningCount = useMemo(
+    () => cases.filter((c) => c.workflowState === 'running').length,
+    [cases]
+  );
+  const doneCount = useMemo(
+    () => cases.filter((c) => c.workflowState === 'done').length,
+    [cases]
+  );
 
   const filteredCases = useMemo(() => {
     let list = [...cases];
@@ -78,14 +152,18 @@ export default function CaseListView({
         (c) =>
           String(c.id).toLowerCase().includes(q) ||
           String(c.title).toLowerCase().includes(q) ||
-          String(c.analyst).toLowerCase().includes(q) ||
-          String(c.size || '').toLowerCase().includes(q)
+          String(c.analyst).toLowerCase().includes(q)
       );
     }
     if (caseAnalystFilter !== 'all')
       list = list.filter((c) => c.analyst === caseAnalystFilter);
     list.sort((a, b) => {
       if (caseSort === 'titleAsc') return a.title.localeCompare(b.title, 'ko');
+      if (caseSort === 'activityDesc') {
+        const aa = new Date(a.lastActivityAt ?? a.date).getTime() || 0;
+        const bb = new Date(b.lastActivityAt ?? b.date).getTime() || 0;
+        return bb - aa;
+      }
       const da = new Date(a.date).getTime() || 0;
       const db = new Date(b.date).getTime() || 0;
       return caseSort === 'dateAsc' ? da - db : db - da;
@@ -176,17 +254,32 @@ export default function CaseListView({
     </button>
   );
 
+  const StateBadge = ({ state }: { state?: WorkflowState }) => {
+    const meta = STATE_BADGE[state ?? 'idle'];
+    const tone = TONE_CLASS[meta.tone];
+    const pulse = meta.tone === 'progress' || meta.tone === 'thinking';
+    return (
+      <span
+        className={`inline-flex items-center gap-1 h-5 px-1.5 rounded border text-[10px] font-medium tracking-wide ${tone}`}
+      >
+        <span
+          className={`w-1.5 h-1.5 rounded-full bg-current ${pulse ? 'animate-pulse2d' : ''}`}
+          aria-hidden
+        />
+        {meta.label}
+      </span>
+    );
+  };
+
   /* ── 메인 렌더 ── */
   return (
     <div className="flex-1 flex flex-col bg-f-bg overflow-hidden">
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          HERO STAT BAR
-          전체 케이스 수를 크게 노출하는 상단 배너.
-          테이블 헤더나 카드 그리드가 아닌
-          "운영 대시보드" 느낌의 단일 수평 띠.
+          HERO STAT BAR — 압축형 (py-3, 32px 숫자)
+          전체 케이스 수 + 보조 스탯 (실행중/완료 추가)
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <header className="bg-f-surface border-b border-f-border shrink-0 px-6 py-4">
+      <header className="bg-f-surface border-b border-f-border shrink-0 px-6 py-3">
         <div className="flex items-end justify-between">
           {/* 좌: 큰 숫자 + 레이블 */}
           <div className="flex items-end gap-5">
@@ -195,11 +288,11 @@ export default function CaseListView({
                 케이스 인벤토리
               </p>
               <div className="flex items-baseline gap-2">
-                <span className="text-[40px] font-bold leading-none text-f-t1 font-mono tabular-nums">
+                <span className="text-[32px] font-bold leading-none text-f-t1 font-mono tabular-nums">
                   {filteredCases.length}
                 </span>
                 {isFiltered && (
-                  <span className="text-[16px] text-f-t4 font-mono">
+                  <span className="text-[14px] text-f-t4 font-mono">
                     /{cases.length}
                   </span>
                 )}
@@ -207,31 +300,21 @@ export default function CaseListView({
             </div>
 
             {/* 구분선 */}
-            <div className="w-px h-10 bg-f-border mb-0.5" aria-hidden />
+            <div className="w-px h-9 bg-f-border mb-0.5" aria-hidden />
 
-            {/* 보조 스탯 */}
+            {/* 보조 스탯 — 실행중/완료/분석관/최근활동 */}
             <dl className="flex gap-5 mb-0.5">
               {[
-                { label: '분석관', value: String(uniqueAnalysts.length) },
-                { label: '최근 갱신', value: recentDate ? fmtDate(recentDate) : '—' },
-                { label: '총 용량', value: (() => {
-                  const gb = cases.reduce((acc, c) => {
-                    const m = c.size.match(/([\d.]+)\s*(GB|MB|TB)/i);
-                    if (!m) return acc;
-                    const n = parseFloat(m[1]);
-                    const u = m[2].toUpperCase();
-                    return acc + (u === 'TB' ? n * 1024 : u === 'MB' ? n / 1024 : n);
-                  }, 0);
-                  return gb >= 1024
-                    ? `${(gb / 1024).toFixed(1)} TB`
-                    : `${gb % 1 === 0 ? gb : gb.toFixed(1)} GB`;
-                })() },
+                { label: '실행 중', value: String(runningCount), tone: runningCount > 0 ? 'text-f-warn' : 'text-f-t3' },
+                { label: '완료', value: String(doneCount), tone: 'text-f-success' },
+                { label: '분석관', value: String(uniqueAnalysts.length), tone: 'text-f-t2' },
+                { label: '최근 활동', value: recentDate ? fmtRelative(recentDate) : '—', tone: 'text-f-t2' },
               ].map((s) => (
                 <div key={s.label} className="flex flex-col gap-0.5">
                   <dt className="text-[10px] text-f-t4 tracking-[0.1em] uppercase font-medium">
                     {s.label}
                   </dt>
-                  <dd className="text-[18px] font-semibold text-f-t2 font-mono tabular-nums leading-none">
+                  <dd className={`text-[15px] font-semibold font-mono tabular-nums leading-none ${s.tone}`}>
                     {s.value}
                   </dd>
                 </div>
@@ -239,29 +322,15 @@ export default function CaseListView({
             </dl>
           </div>
 
-          {/* 우: 검색 — 히어로 레벨로 배치 */}
-          <div className="relative w-80">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-f-t4 pointer-events-none"
-            />
-            <input
-              type="search"
-              placeholder="검색 (ID · 제목 · 분석관 · 용량)"
-              value={caseSearchQuery}
-              onChange={(e) => setCaseSearchQuery(e.target.value)}
-              className="w-full h-9 bg-f-bg border border-f-border rounded-lg pl-9 pr-3 text-[13px] text-f-t1 placeholder:text-f-t4 outline-none focus:border-f-accent focus:bg-f-surface transition-colors"
-            />
-          </div>
         </div>
       </header>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          필터 툴바 — 히어로 아래 얇은 띠
+          필터 툴바 — 검색 통합 (h-12)
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div
         data-case-filter-root
-        className={`bg-f-bg border-b border-f-border h-10 flex items-center px-6 gap-2 shrink-0 ${
+        className={`bg-f-bg border-b border-f-border h-12 flex items-center px-6 gap-2 shrink-0 ${
           caseFilterMenu ? 'z-40 relative' : 'z-[1]'
         }`}
       >
@@ -271,9 +340,7 @@ export default function CaseListView({
 
         <DropMenu
           menuKey="analyst"
-          label={
-            caseAnalystFilter === 'all' ? '분석관' : caseAnalystFilter
-          }
+          label={caseAnalystFilter === 'all' ? '분석관' : caseAnalystFilter}
         >
           <Opt
             active={caseAnalystFilter === 'all'}
@@ -302,6 +369,11 @@ export default function CaseListView({
             onPick={() => setCaseSort('dateAsc')}
           />
           <Opt
+            active={caseSort === 'activityDesc'}
+            label="활동순"
+            onPick={() => setCaseSort('activityDesc')}
+          />
+          <Opt
             active={caseSort === 'titleAsc'}
             label="제목순"
             onPick={() => setCaseSort('titleAsc')}
@@ -321,19 +393,32 @@ export default function CaseListView({
           </button>
         )}
 
-        {isFiltered && (
-          <span className="ml-auto text-[11px] text-f-t4 tabular-nums font-mono">
-            <span className="text-f-t2 font-semibold">{filteredCases.length}</span>
-            {' '}/ {cases.length}
-          </span>
-        )}
+        {/* 검색 — 우측 정렬 */}
+        <div className="ml-auto relative w-72">
+          <Search
+            size={13}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-f-t4 pointer-events-none"
+          />
+          <input
+            type="search"
+            placeholder="검색 (ID · 제목 · 분석관)"
+            value={caseSearchQuery}
+            onChange={(e) => setCaseSearchQuery(e.target.value)}
+            className="w-full h-7 bg-f-surface border border-f-border rounded-md pl-7 pr-2 text-[12px] text-f-t1 placeholder:text-f-t4 outline-none focus:border-f-accent transition-colors"
+          />
+        </div>
+
+        {/* 상시 카운트 */}
+        <span className="text-[11px] text-f-t3 tabular-nums font-mono whitespace-nowrap">
+          <span className="text-f-t1 font-semibold">{filteredCases.length}</span>
+          <span className="text-f-t4"> / {cases.length}</span>
+          <span className="text-f-t4 mx-1.5">·</span>
+          <span className="text-f-t3">{SORT_LABEL[caseSort]}</span>
+        </span>
       </div>
 
       {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          리치 리스트 — 각 행 80px, 타이포 계층화
-          ① 좌측: 시퀀스 인덱스 (모노 / 희미)
-          ② 가운데: 큰 제목(16px) + 메타 chip row
-          ③ 우측: 날짜 + 삭제 버튼
+          리치 리스트 — 각 행 h-14, 상태 뱃지 + 아바타 + 활동시간
       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div className="flex-1 overflow-auto">
         {filteredCases.length === 0 ? (
@@ -347,90 +432,113 @@ export default function CaseListView({
             </p>
           </div>
         ) : (
-          <ul role="list" className="divide-y divide-f-border">
-            {filteredCases.map((c, idx) => (
-              <li key={c.id}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`케이스 ${c.id} ${c.title} 열기`}
-                  onClick={() => onRowClick({ id: c.id, title: c.title })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      onRowClick({ id: c.id, title: c.title });
-                    }
-                  }}
-                  className="group flex items-center gap-5 px-6 h-16 cursor-pointer bg-f-surface hover:bg-f-surface2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-inset"
-                >
-                  {/* ① 시퀀스 번호 */}
-                  <span
-                    className="w-8 text-right text-[11px] font-mono text-f-t4 tabular-nums shrink-0 group-hover:text-f-t3 transition-colors select-none"
-                    aria-hidden
+          <>
+            <ul role="list" className="divide-y divide-f-border">
+              {filteredCases.map((c, idx) => (
+                <li key={c.id}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`케이스 ${c.id} ${c.title} 열기`}
+                    onClick={() => onRowClick({ id: c.id, title: c.title })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onRowClick({ id: c.id, title: c.title });
+                      }
+                    }}
+                    className="group flex items-center gap-4 px-6 h-14 cursor-pointer bg-f-surface hover:bg-f-surface2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-inset"
                   >
-                    {String(idx + 1).padStart(2, '0')}
-                  </span>
-
-                  {/* ② 메인 콘텐츠 — 제목 + 메타 chip row */}
-                  <div className="flex-1 min-w-0">
-                    {/* 제목 */}
-                    <p className="text-[15px] font-semibold text-f-t1 leading-snug truncate mb-1.5 group-hover:text-f-accent transition-colors">
-                      {c.title}
-                    </p>
-
-                    {/* 메타 chip row */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* ID chip */}
-                      <span className="inline-flex items-center h-5 px-2 rounded bg-f-surface2 border border-f-border text-[10px] font-mono text-f-t3 tracking-wide group-hover:border-f-border2 transition-colors">
-                        {c.id}
-                      </span>
-
-                      <span className="w-px h-3 bg-f-border" aria-hidden />
-
-                      {/* 분석관 */}
-                      <span className="text-[11px] text-f-t3 font-medium">
-                        {c.analyst}
-                      </span>
-
-                      <span className="w-px h-3 bg-f-border" aria-hidden />
-
-                      {/* 용량 */}
-                      <span className="text-[11px] text-f-t4 font-mono tabular-nums">
-                        {c.size}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* ③ 우측: 날짜 + 삭제 */}
-                  <div className="flex items-center gap-4 shrink-0">
-                    {/* 날짜 — 2줄 표현 */}
-                    <div className="text-right hidden sm:block">
-                      <p className="text-[10px] text-f-t4 tracking-[0.08em] uppercase mb-0.5">
-                        생성일
-                      </p>
-                      <p className="text-[12px] font-mono tabular-nums text-f-t3">
-                        {c.date}
-                      </p>
-                    </div>
-
-                    {/* 삭제 버튼 */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDelete(c.id);
-                      }}
-                      aria-label={`${c.id} 삭제`}
-                      tabIndex={0}
-                      className="w-8 h-8 rounded-md flex items-center justify-center border border-transparent text-f-t4 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-f-danger hover:bg-f-surface hover:border-f-border transition-all shrink-0"
+                    {/* ① 시퀀스 번호 */}
+                    <span
+                      className="w-7 text-right text-[11px] font-mono text-f-t4 tabular-nums shrink-0 group-hover:text-f-t3 transition-colors select-none"
+                      aria-hidden
                     >
-                      <Trash2 size={14} />
-                    </button>
+                      {String(idx + 1).padStart(2, '0')}
+                    </span>
+
+                    {/* ② 분석관 이니셜 아바타 */}
+                    <span
+                      className="w-7 h-7 shrink-0 rounded-full bg-f-accent-light text-f-accent text-[11px] font-semibold flex items-center justify-center select-none"
+                      title={c.analyst}
+                      aria-hidden
+                    >
+                      {initials(c.analyst)}
+                    </span>
+
+                    {/* ③ 메인 콘텐츠 — 제목 + 메타 row */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <p className="text-[14px] font-semibold text-f-t1 leading-tight truncate group-hover:text-f-accent transition-colors">
+                          {c.title}
+                        </p>
+                        <StateBadge state={c.workflowState} />
+                      </div>
+
+                      {/* 메타: ID · 분석관 · 생성일 */}
+                      <div className="flex items-center gap-2 text-[11px] text-f-t4">
+                        <span className="font-mono text-f-t3">{c.id}</span>
+                        <span className="text-f-border">·</span>
+                        <span className="text-f-t3">{c.analyst}</span>
+                        <span className="text-f-border">·</span>
+                        <span className="font-mono">생성 {fmtDate(c.date)}</span>
+                      </div>
+                    </div>
+
+                    {/* ④ 우측: 마지막 활동 + 삭제 */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-[10px] text-f-t4 tracking-[0.08em] uppercase mb-0.5">
+                          마지막 활동
+                        </p>
+                        <p className="text-[12px] font-mono tabular-nums text-f-t2">
+                          {fmtRelative(c.lastActivityAt ?? c.date)}
+                        </p>
+                      </div>
+
+                      {/* 삭제 — 상시 dim, hover 시 강조 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(c.id);
+                        }}
+                        aria-label={`${c.id} 삭제`}
+                        tabIndex={0}
+                        className="w-8 h-8 rounded-md flex items-center justify-center border border-transparent text-f-t4 opacity-30 group-hover:opacity-100 hover:text-f-danger hover:bg-f-surface hover:border-f-border focus-visible:opacity-100 transition-all shrink-0"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+
+            {/* 케이스 적을 때 하단 빈 영역 — 점선 "새 케이스 추가" 행 */}
+            {onCreate && filteredCases.length <= 8 && (
+              <button
+                type="button"
+                onClick={onCreate}
+                className="w-full h-14 flex items-center justify-center gap-2 border-t border-dashed border-f-border bg-f-bg text-f-t4 text-[12px] hover:text-f-accent hover:bg-f-accent-light/40 hover:border-f-accent transition-colors"
+              >
+                <Plus size={14} />
+                새 케이스 추가
+              </button>
+            )}
+
+            {/* 하단 도트 패턴 채움 — 시각적 마무리 */}
+            <div
+              className="h-full min-h-[80px] bg-f-bg"
+              style={{
+                backgroundImage:
+                  'radial-gradient(circle, var(--f-dot) 1px, transparent 1px)',
+                backgroundSize: '14px 14px',
+                opacity: 0.35,
+              }}
+              aria-hidden
+            />
+          </>
         )}
       </div>
     </div>

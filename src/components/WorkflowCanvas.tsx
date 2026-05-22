@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -11,46 +11,44 @@ import {
   type Edge,
   type Node,
   type NodeTypes,
-  type EdgeTypes,
-  type EdgeMouseHandler,
   type NodeMouseHandler,
   BackgroundVariant,
   MarkerType,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import WorkflowNode, { type WorkflowNodeType } from './nodes/WorkflowNode';
-import LabelEdge from './edges/LabelEdge';
-import type { PlanStep, WorkflowNodeData, SelectedEdge } from '@/types';
+import type { PlanStep, StepRun, WorkflowNodeData } from '@/types';
 import { GitBranch } from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 
 const nodeTypes: NodeTypes = { workflowNode: WorkflowNode };
-const edgeTypes: EdgeTypes = { labelEdge: LabelEdge };
 
-// tailwind.config.ts의 colors.f.* 와 동기화 — React Flow는 색상 props로 raw 문자열을 요구하므로
-// Tailwind 클래스 대신 토큰 값을 한 곳에서 참조한다.
-const CANVAS_COLORS = {
-  dot: '#e4e4e7',           // f-dot
-  miniMapBg: '#ffffff',     // f-surface
-  miniMapBorder: '#e4e4e7', // f-border
-  edgeIdle: '#d4d4d8',      // f-border2
-  edgeActive: '#2563eb',    // f-accent
-  // 항목 2: MiniMap nodeColor 콜백용 상태별 hex
-  nodeRunning:  '#2563eb',  // f-accent
-  nodeDone:     '#d4d4d8',  // f-border2
-  nodeApproved: '#16a34a',  // f-success
-  nodeIdle:     '#e4e4e7',  // f-border
+// React Flow는 색상 props로 raw 문자열을 요구하므로, 테마에 따라 토큰 값을 동기화한다.
+const LIGHT_CANVAS_COLORS = {
+  dot: '#e4e4e7',
+  miniMapBg: '#ffffff',
+  miniMapBorder: '#e4e4e7',
+  edgeIdle: '#d4d4d8',
+  edgeActive: '#2563eb',
+  nodeRunning:  '#2563eb',
+  nodeDone:     '#d4d4d8',
+  nodeApproved: '#16a34a',
+  nodeIdle:     '#e4e4e7',
+  miniMapMask:  'rgba(17,24,39,0.04)',
 } as const;
 
-/** 항목 2: MiniMap nodeColor 콜백 — 노드 data.nodeStatus 기준 */
-function miniMapNodeColor(node: Node): string {
-  const status = (node.data as WorkflowNodeData | undefined)?.nodeStatus;
-  switch (status) {
-    case 'running':  return CANVAS_COLORS.nodeRunning;
-    case 'done':     return CANVAS_COLORS.nodeDone;
-    case 'approved': return CANVAS_COLORS.nodeApproved;
-    default:         return CANVAS_COLORS.nodeIdle;
-  }
-}
+const DARK_CANVAS_COLORS = {
+  dot: '#2a2a30',
+  miniMapBg: '#141418',
+  miniMapBorder: '#2a2a30',
+  edgeIdle: '#3a3a42',
+  edgeActive: '#60a5fa',
+  nodeRunning:  '#60a5fa',
+  nodeDone:     '#3a3a42',
+  nodeApproved: '#4ade80',
+  nodeIdle:     '#2a2a30',
+  miniMapMask:  'rgba(0,0,0,0.32)',
+} as const;
 
 interface Props {
   editablePlan: PlanStep[];
@@ -58,14 +56,40 @@ interface Props {
   activeStep: number;
   selectedNode: number | null;
   onSelectNode: (idx: number) => void;
-  onEdgeClick: (edge: SelectedEdge) => void;
   dfxmlFragments?: Record<number, string>;
+  stepRuns?: Record<number, StepRun>;
   caseTitle?: string;
 }
 
 export default function WorkflowCanvas({
-  editablePlan, workflowState, activeStep, selectedNode, onSelectNode, onEdgeClick, dfxmlFragments, caseTitle,
+  editablePlan, workflowState, activeStep, selectedNode, onSelectNode, dfxmlFragments, stepRuns, caseTitle,
 }: Props) {
+  const { theme } = useTheme();
+  const CANVAS_COLORS = theme === 'dark' ? DARK_CANVAS_COLORS : LIGHT_CANVAS_COLORS;
+
+  const miniMapNodeColor = useCallback(
+    (node: Node): string => {
+      const status = (node.data as WorkflowNodeData | undefined)?.nodeStatus;
+      switch (status) {
+        case 'running':  return CANVAS_COLORS.nodeRunning;
+        case 'done':     return CANVAS_COLORS.nodeDone;
+        case 'approved': return CANVAS_COLORS.nodeApproved;
+        default:         return CANVAS_COLORS.nodeIdle;
+      }
+    },
+    [CANVAS_COLORS]
+  );
+
+  const miniMapStyle = useMemo(
+    () => ({
+      background: CANVAS_COLORS.miniMapBg,
+      border: `1px solid ${CANVAS_COLORS.miniMapBorder}`,
+      borderRadius: 6,
+      boxShadow: '0 1px 2px rgba(0,0,0,0.12)',
+    }),
+    [CANVAS_COLORS]
+  );
+
   const getNodeStatus = useCallback(
     (i: number): WorkflowNodeData['nodeStatus'] => {
       if (workflowState === 'done') return 'done';
@@ -86,8 +110,11 @@ export default function WorkflowCanvas({
       dfxml: { name: item.name, xml: dfxmlFragments?.[i] ?? '' },
       caseTitle: caseTitle ?? '',
       onSelect: onSelectNode,
+      purpose: item.purpose,
+      hints: item.hints,
+      run: stepRuns?.[i],
     }),
-    [getNodeStatus, selectedNode, onSelectNode, dfxmlFragments, caseTitle]
+    [getNodeStatus, selectedNode, onSelectNode, dfxmlFragments, stepRuns, caseTitle]
   );
 
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNodeType>([]);
@@ -102,7 +129,7 @@ export default function WorkflowCanvas({
         return editablePlan.map((item, i) => ({
           id: `node-${i}`,
           type: 'workflowNode' as const,
-          position: { x: 60 + i * 400, y: 80 },
+          position: { x: 40 + i * 380, y: 80 },
           data: buildNodeData(item, i),
         }));
       }
@@ -124,19 +151,17 @@ export default function WorkflowCanvas({
     );
   }, [workflowState, activeStep, selectedNode, buildNodeData, setNodes, editablePlan]);
 
-  // 엣지 갱신
+  // 엣지 갱신 — 기본 smoothstep, 진행 중이면 강조
   useEffect(() => {
     setEdges(
-      editablePlan.slice(0, -1).map((step, i) => {
+      editablePlan.slice(0, -1).map((_step, i) => {
         const isActive = workflowState === 'running' && i <= activeStep;
         return {
           id: `edge-${i}`,
           source: `node-${i}`,
           target: `node-${i + 1}`,
-          // 커스텀 엣지: EdgeLabelRenderer로 라벨을 DOM에 렌더해 노드와 겹침 방지
-          type: 'labelEdge' as const,
+          type: 'smoothstep' as const,
           animated: isActive,
-          // label, labelStyle 제거 — data.label로 커스텀 컴포넌트에 전달
           style: { stroke: isActive ? CANVAS_COLORS.edgeActive : CANVAS_COLORS.edgeIdle, strokeWidth: 1.5 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
@@ -144,27 +169,10 @@ export default function WorkflowCanvas({
             height: 14,
             color: isActive ? CANVAS_COLORS.edgeActive : CANVAS_COLORS.edgeIdle,
           },
-          data: {
-            idx: i,
-            isActive,
-            label: step.edgeLabel ?? '',
-          },
         };
       })
     );
-  }, [editablePlan, workflowState, activeStep, setEdges]);
-
-  const handleEdgeClick: EdgeMouseHandler = useCallback(
-    (event, edge) => {
-      event.stopPropagation();
-      onEdgeClick({
-        idx: (edge.data as { idx: number }).idx,
-        clientX: event.clientX,
-        clientY: event.clientY,
-      });
-    },
-    [onEdgeClick]
-  );
+  }, [editablePlan, workflowState, activeStep, setEdges, CANVAS_COLORS]);
 
   const handleNodeClick: NodeMouseHandler<WorkflowNodeType> = useCallback(
     (_, node) => {
@@ -185,47 +193,47 @@ export default function WorkflowCanvas({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
-        onEdgeClick={handleEdgeClick}
         onNodeClick={handleNodeClick}
         fitView
-        fitViewOptions={{ padding: 0.3 }}
+        fitViewOptions={{ padding: 0.2, maxZoom: 0.95, minZoom: 0.4 }}
         minZoom={0.3}
         maxZoom={2}
         nodesDraggable
         nodesConnectable={false}
         proOptions={{ hideAttribution: true }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={CANVAS_COLORS.dot} />
-        {/* 항목 2: nodeColor 콜백으로 상태별 색 */}
+        <Background variant={BackgroundVariant.Dots} gap={22} size={1} color={CANVAS_COLORS.dot} />
+        {/* MiniMap — 테마 인지 카드 */}
         <MiniMap
-          style={{ background: CANVAS_COLORS.miniMapBg, border: `1px solid ${CANVAS_COLORS.miniMapBorder}`, borderRadius: 4 }}
+          style={miniMapStyle}
           nodeColor={miniMapNodeColor}
-          maskColor="rgba(0,0,0,0.04)"
+          nodeStrokeWidth={0}
+          nodeBorderRadius={3}
+          maskColor={CANVAS_COLORS.miniMapMask}
+          pannable
+          zoomable
         />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} className="!shadow-flat !rounded-[6px] !border !border-f-border !bg-f-surface [&>button]:!bg-transparent [&>button]:!border-0 [&>button]:!text-f-t3 hover:[&>button]:!text-f-t1" />
       </ReactFlow>
 
-      {/* 항목 3: 로딩 오버레이 — 스켈레톤 노드 3개 */}
+      {/* 로딩 오버레이 — 스켈레톤 노드 3개 */}
       {isEmpty && isLoading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-[200px]">
+          <div className="flex items-center gap-[124px]">
             {[0, 1, 2].map(i => (
               <div
                 key={i}
-                className="w-[200px] rounded-lg border border-f-border bg-f-surface shadow-flat animate-pulse"
+                className="relative w-[256px] rounded-[10px] border border-f-border bg-f-surface shadow-flat animate-pulse overflow-hidden"
                 style={{ animationDelay: `${i * 0.15}s` }}
               >
-                <div className="pl-4 pr-2.5 pt-2.5 pb-2 border-b border-f-border flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    <div className="w-4 h-2 rounded bg-f-surface2 shrink-0" />
-                    <div className="h-3 rounded bg-f-surface2 flex-1" />
+                <div className="absolute left-0 top-2 bottom-2 w-[3.5px] rounded-r-[3px] bg-f-border" aria-hidden />
+                <div className="pl-3.5 pr-2.5 pt-2.5 pb-2.5">
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="h-2.5 flex-1 rounded bg-f-surface2" />
+                    <div className="w-14 h-[20px] rounded-full bg-f-surface2 shrink-0" />
                   </div>
-                  <div className="w-10 h-[18px] rounded bg-f-surface2 shrink-0" />
-                </div>
-                <div className="pl-4 pr-2.5 py-2">
-                  <div className="h-2.5 w-24 rounded bg-f-surface2" />
+                  <div className="h-2 w-32 rounded bg-f-surface2" />
                 </div>
               </div>
             ))}
@@ -233,14 +241,16 @@ export default function WorkflowCanvas({
         </div>
       )}
 
-      {/* 항목 3: 빈 상태 오버레이 — 도트 그리드 위에 중앙 카드 */}
+      {/* 빈 상태 오버레이 — 도트 그리드 위에 중앙 카드 */}
       {isEmpty && !isLoading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex flex-col items-center gap-3 text-f-t4">
-            <GitBranch size={40} strokeWidth={1.2} aria-hidden />
-            <div className="text-center">
-              <p className="text-[13px] font-medium text-f-t3 mb-0.5">분석 계획이 없습니다</p>
-              <p className="text-[12px] text-f-t4">케이스를 선택하거나 새 분석을 시작하세요</p>
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-12 h-12 rounded-[10px] bg-f-surface border border-f-border shadow-flat flex items-center justify-center">
+              <GitBranch size={20} strokeWidth={1.4} className="text-f-t3" aria-hidden />
+            </div>
+            <div className="text-center max-w-[260px]">
+              <p className="text-[13px] font-semibold text-f-t2 mb-1 tracking-[-0.005em]">분석 계획이 없습니다</p>
+              <p className="text-[11.5px] text-f-t4 leading-snug">케이스를 선택하거나 우측 패널에서 새 분석을 시작하세요</p>
             </div>
           </div>
         </div>
