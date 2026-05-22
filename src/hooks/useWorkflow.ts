@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { recommendMcpForStrategyStep } from '@/lib/utils';
 import type { WsEvent } from '@/hooks/useAnalysisWebSocket';
 import type { TaskResult, ReportData } from '@/hooks/useReportRun';
-import type { PlanStep, RejectionRecord, StrategyStep, WorkflowState } from '@/types';
+import type { PlanStep, RejectionRecord, StepRun, StrategyStep, WorkflowState } from '@/types';
 
 interface UseWorkflowOptions {
   caseId: string;
@@ -24,7 +24,10 @@ function parsePlanSteps(steps: any[]): PlanStep[] {
     step: i + 1,
     name: s.name || s.purpose || '',
     mcp: s.mcp_server && s.mcp_server.toLowerCase() !== 'none' ? s.mcp_server : 'Dissect MCP',
-    edgeLabel: s.edge_label ?? null,
+    purpose: s.purpose ?? undefined,
+    hints: s.hints ?? undefined,
+    artifactsHint: s.artifacts_hint ?? s.artifacts ?? null,
+    isFollowup: s.is_followup ?? false,
   }));
 }
 
@@ -37,6 +40,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
   const [rejectedPlanSnapshot, setRejectedPlanSnapshot] = useState<PlanStep[] | null>(null);
   const [activeStep, setActiveStep] = useState(-1);
   const [nodeDfxmlFragments, setNodeDfxmlFragments] = useState<Record<number, string>>({});
+  const [nodeStepRuns, setNodeStepRuns] = useState<Record<number, StepRun>>({});
 
   const rejectionReasonRef = useRef('');
   const strategyEditReasonRef = useRef('');
@@ -53,6 +57,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
     setRejectedPlanSnapshot(null);
     setActiveStep(-1);
     setNodeDfxmlFragments({});
+    setNodeStepRuns({});
     rejectionReasonRef.current = '';
     strategyEditReasonRef.current = '';
     strategyBackupRef.current = [];
@@ -66,7 +71,6 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
         step: idx + 1,
         name: step.text,
         mcp: prevPlan[idx]?.mcp || recommendMcpForStrategyStep(step.text),
-        edgeLabel: prevPlan[idx]?.edgeLabel ?? null,
       })),
     []
   );
@@ -205,11 +209,86 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
     }
   }, [caseId]);
 
+  const restoreFromCase = useCallback(async (
+    cid: string,
+    onDetail?: (detail: Awaited<ReturnType<typeof api.getCaseDetail>>) => void,
+  ) => {
+    if (!cid) return;
+    try {
+      const [detail, plan, results] = await Promise.all([
+        api.getCaseDetail(cid),
+        api.getCasePlan(cid),
+        api.getCaseResults(cid),
+      ]);
+
+      onDetail?.(detail);
+
+      if (detail.analysis_strategy) {
+        setStrategySteps(parseStrategyLines(detail.analysis_strategy));
+      }
+      if (plan.steps.length > 0) {
+        setEditablePlan(
+          plan.steps.map((s, i) => ({
+            step: i + 1,
+            name: s.name,
+            mcp: s.mcp_server && s.mcp_server.toLowerCase() !== 'none'
+              ? s.mcp_server
+              : 'Dissect MCP',
+            purpose: s.purpose ?? undefined,
+            hints: s.hints ?? undefined,
+            artifactsHint: s.artifacts_hint ?? null,
+            isFollowup: s.is_followup ?? false,
+          })),
+        );
+        setPlanRound(plan.plan_round || 1);
+      }
+
+      const frags: Record<number, string> = {};
+      const runs: Record<number, StepRun> = {};
+      for (const r of results) {
+        if (r.dfxml_fragment) frags[r.step_index] = r.dfxml_fragment;
+        runs[r.step_index] = {
+          status: r.status,
+          output: r.output,
+          elapsedMs: r.elapsed_ms ?? null,
+          agentName: r.agent_name,
+          startedAt: r.started_at,
+          completedAt: r.completed_at,
+        };
+      }
+      setNodeDfxmlFragments(frags);
+      setNodeStepRuns(runs);
+
+      const statusToState: Record<string, WorkflowState> = {
+        open: 'idle',
+        strategy: 'strategy_review',
+        plan: 'plan_requested',
+        approved: 'approved',
+        running: 'running',
+        executed: 'done',
+        done: 'done',
+        failed: 'idle',
+      };
+      setWorkflowState(statusToState[detail.status] ?? 'idle');
+    } catch (e) {
+      console.error('restoreFromCase failed:', e);
+    }
+  }, []);
+
   const handleWsEvent = useCallback(
     (event: WsEvent) => {
       switch (event.type) {
         case 'step_started':
           setActiveStep(event.step_index);
+          setNodeStepRuns(prev => ({
+            ...prev,
+            [event.step_index]: {
+              ...(prev[event.step_index] ?? {}),
+              status: 'running',
+              agentName: event.agent_name ?? prev[event.step_index]?.agentName,
+              startedAt: new Date().toISOString(),
+            },
+          }));
           break;
         case 'step_completed':
           if ('dfxml_fragment' in event && event.dfxml_fragment) {
@@ -218,6 +297,17 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
               [event.step_index]: event.dfxml_fragment as string,
             }));
           }
+          setNodeStepRuns(prev => ({
+            ...prev,
+            [event.step_index]: {
+              ...(prev[event.step_index] ?? {}),
+              status: event.status ?? prev[event.step_index]?.status,
+              output: event.output ?? prev[event.step_index]?.output,
+              elapsed: event.elapsed ?? prev[event.step_index]?.elapsed,
+              agentName: event.agent_name ?? prev[event.step_index]?.agentName,
+              completedAt: new Date().toISOString(),
+            },
+          }));
           break;
         case 'execution_done':
           setActiveStep(-1);
@@ -248,6 +338,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
     rejectedPlanSnapshot,
     activeStep,
     nodeDfxmlFragments,
+    nodeStepRuns,
     // setters (panel inline edit)
     setStrategySteps,
     setEditablePlan,
@@ -274,5 +365,6 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
     pauseWorkflow,
     handleWsEvent,
     reset,
+    restoreFromCase,
   };
 }
