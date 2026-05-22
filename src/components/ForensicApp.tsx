@@ -10,8 +10,8 @@ import AnalysisPanel from './AnalysisPanel';
 import DeleteCaseModal from './modals/DeleteCaseModal';
 import NewCaseModal from './modals/NewCaseModal';
 import McpModal from './modals/McpModal';
-import EdgeModal from './modals/EdgeModal';
 import ReportViewerModal from './modals/ReportViewerModal';
+import SettingsModal from './modals/SettingsModal';
 
 import { detectDiskImageFormat } from '@/lib/utils';
 import { useAnalysisWebSocket } from '@/hooks/useAnalysisWebSocket';
@@ -21,7 +21,7 @@ import { useReportRun } from '@/hooks/useReportRun';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { WorkflowProvider, type WorkflowContextValue } from '@/contexts/WorkflowContext';
 import type {
-  ActiveCase, SelectedEdge, McpModalState, CaseSort,
+  ActiveCase, McpModalState, CaseSort,
 } from '@/types';
 
 const WorkflowCanvas = dynamic(() => import('./WorkflowCanvas'), { ssr: false });
@@ -36,15 +36,21 @@ export default function ForensicApp() {
   const [chatInputText, setChatInputText] = useState('');
   const [submittedPrompt, setSubmittedPrompt] = useState('');
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
-  const [selectedEdge, setSelectedEdge] = useState<SelectedEdge | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [showReasoning, setShowReasoning] = useState(false);
   const [mcpModal, setMcpModal] = useState<McpModalState>({ open: false, stepIdx: null });
   const [mcpSearch, setMcpSearch] = useState('');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const { cases, activeCase, setActiveCase, createCase, deleteCase } = useCases();
   const [newCaseModalOpen, setNewCaseModalOpen] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState('');
+  const [newCaseAnalyst, setNewCaseAnalyst] = useState('');
+
+  const resetNewCaseForm = useCallback(() => {
+    setNewCaseTitle('');
+    setNewCaseAnalyst('');
+  }, []);
   const [caseSearchQuery, setCaseSearchQuery] = useState('');
   const [caseAnalystFilter, setCaseAnalystFilter] = useState('all');
   const [caseSort, setCaseSort] = useState<CaseSort>('dateDesc');
@@ -77,14 +83,30 @@ export default function ForensicApp() {
     setSelectedNode(null);
     workflow.reset();
     reportRun.reset();
+    if (caseInfo?.id) {
+      void workflow.restoreFromCase(caseInfo.id, (detail) => {
+        if (detail.user_prompt) {
+          setSubmittedPrompt(detail.user_prompt);
+        }
+        if (detail.disk_image_path) {
+          setDiskImagePath(detail.disk_image_path);
+          setPathStepDone(true);
+        }
+        reportRun.hydrateFromDetail(detail);
+      });
+    }
   }, [setActiveCase, workflow, reportRun]);
 
   const handleCreateNewCase = useCallback(async () => {
-    const created = await createCase(newCaseTitle);
+    const created = await createCase({
+      title: newCaseTitle,
+      analyst: newCaseAnalyst,
+    });
     if (!created) return;
     setNewCaseModalOpen(false);
-    setNewCaseTitle('');
-  }, [createCase, newCaseTitle]);
+    resetNewCaseForm();
+    navigateToBuilder({ id: created.id, title: created.title });
+  }, [createCase, newCaseTitle, newCaseAnalyst, resetNewCaseForm, navigateToBuilder]);
 
   const handleIntakeSubmit = useCallback(async () => {
     if (!pathStepDone || !diskImageReady || !chatInputText.trim()) return;
@@ -197,19 +219,26 @@ export default function ForensicApp() {
 
   return (
     <div className="flex h-screen w-screen bg-f-bg text-f-t1 overflow-hidden font-sans text-[13px]">
-      {confirmDeleteId && (
-        <DeleteCaseModal
-          caseId={confirmDeleteId}
-          onConfirm={handleDeleteCase}
-          onCancel={() => setConfirmDeleteId(null)}
-        />
-      )}
+      {confirmDeleteId && (() => {
+        const target = cases.find(c => c.id === confirmDeleteId);
+        return (
+          <DeleteCaseModal
+            caseId={confirmDeleteId}
+            caseTitle={target?.title}
+            workflowState={target?.workflowState}
+            onConfirm={handleDeleteCase}
+            onCancel={() => setConfirmDeleteId(null)}
+          />
+        );
+      })()}
       {newCaseModalOpen && (
         <NewCaseModal
           newCaseTitle={newCaseTitle}
           setNewCaseTitle={setNewCaseTitle}
+          newCaseAnalyst={newCaseAnalyst}
+          setNewCaseAnalyst={setNewCaseAnalyst}
           onCreate={handleCreateNewCase}
-          onCancel={() => { setNewCaseModalOpen(false); setNewCaseTitle(''); }}
+          onCancel={() => { setNewCaseModalOpen(false); resetNewCaseForm(); }}
         />
       )}
       {mcpModal.open && mcpModal.stepIdx !== null && (
@@ -220,13 +249,6 @@ export default function ForensicApp() {
           setMcpSearch={setMcpSearch}
           onSelect={selectMcp}
           onClose={() => setMcpModal({ open: false, stepIdx: null })}
-        />
-      )}
-      {selectedEdge !== null && (
-        <EdgeModal
-          selectedEdge={selectedEdge}
-          editablePlan={workflow.editablePlan}
-          onClose={() => setSelectedEdge(null)}
         />
       )}
       {reportRun.showReportViewer && (
@@ -240,52 +262,108 @@ export default function ForensicApp() {
         />
       )}
 
-      <NavRail currentView={currentView} onViewChange={setCurrentView} />
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      <NavRail
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="h-10 bg-f-surface border-b border-f-border flex items-center justify-between px-4 shrink-0 select-none">
-          <div className="flex items-center text-xs">
-            <button
-              type="button"
-              className="text-f-t3 cursor-pointer hover:text-f-t1 transition-colors bg-transparent border-0 p-0 font-inherit text-xs"
-              onClick={() => setCurrentView('list')}
-            >
-              케이스 목록
-            </button>
-            {currentView === 'builder' && (
-              <>
-                <ChevronRight size={13} className="text-f-border2 mx-1" />
-                <span className="text-f-t3 font-mono text-[11px]">{activeCase.id}</span>
-                <ChevronRight size={13} className="text-f-border2 mx-1" />
-                <span className="text-f-t1 font-medium">{activeCase.title}</span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2.5">
-            {currentView === 'list' && (
+
+        {/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            GLOBAL TOPBAR
+            케이스 목록 뷰: 인벤토리 레이블 + 새 케이스 버튼
+            워크플로 뷰: 브레드크럼 + 케이스 메타 스트립 + 액션 버튼
+        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        <header className="bg-f-surface border-b border-f-border shrink-0 select-none shadow-[0_1px_0_rgba(17,24,39,0.02)]">
+          {currentView === 'list' ? (
+            /* ── 목록 뷰 헤더: 얇은 h-10 구분 바 ── */
+            <div className="h-10 flex items-center justify-between px-6">
+              <span className="text-[10px] font-semibold tracking-[0.14em] uppercase text-f-t4">
+                케이스 인벤토리
+              </span>
               <button
                 type="button"
-                onClick={() => { setNewCaseTitle(''); setNewCaseModalOpen(true); }}
-                className="h-7 px-3 bg-f-accent border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
+                onClick={() => { resetNewCaseForm(); setNewCaseModalOpen(true); }}
+                aria-label="새 케이스 만들기"
+                className="h-7 px-2.5 bg-f-invert-bg border-none rounded-[6px] text-f-invert-fg text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:bg-f-invert-bg-hover transition-colors focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-offset-1 focus-visible:outline-none shadow-flat"
               >
-                <Plus size={13} /> 새 케이스
+                <Plus size={12} strokeWidth={2.2} />
+                새 케이스
               </button>
-            )}
-            {currentView === 'builder' && workflow.workflowState === 'approved' && (
-              <button
-                onClick={handleRunWorkflow}
-                className="h-7 px-3 bg-f-accent border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
-              >
-                <Play size={12} fill="currentColor" /> 워크플로 실행
-              </button>
-            )}
-            {currentView === 'builder' && workflow.workflowState === 'running' && (
-              <button onClick={workflow.pauseWorkflow} className="h-7 px-3 bg-f-warn border-none rounded-[5px] text-white text-xs font-medium cursor-pointer flex items-center gap-1">
-                <Pause size={12} fill="currentColor" /> 일시정지
-              </button>
-            )}
-          </div>
-        </div>
+            </div>
+          ) : (
+            /* ── 워크플로 뷰 헤더: 케이스 메타 + 액션 ── */
+            <div className="flex items-center justify-between px-4 lg:px-6 h-12 gap-2 lg:gap-4">
+
+              {/* 좌: 브레드크럼 + 케이스 메타 */}
+              <div className="flex items-center gap-2 lg:gap-3 min-w-0 overflow-hidden">
+
+                {/* 브레드크럼 — 1024px 이하에서 "목록"으로 축약 */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('list')}
+                    aria-label="케이스 목록으로 돌아가기"
+                    className="text-[11px] text-f-t4 hover:text-f-t1 transition-colors bg-transparent border-0 p-0 cursor-pointer font-medium whitespace-nowrap"
+                  >
+                    <span className="hidden lg:inline">케이스 목록</span>
+                    <span className="lg:hidden">목록</span>
+                  </button>
+                  <ChevronRight size={11} className="text-f-border2 shrink-0" aria-hidden />
+                  {/* 제목 — 1024px 이하에서 max-w 좁힘 */}
+                  <span
+                    className="text-[12px] font-semibold text-f-t1 truncate max-w-[120px] sm:max-w-[180px] lg:max-w-[260px] tracking-[-0.005em]"
+                    title={activeCase.title}
+                  >
+                    {activeCase.title}
+                  </span>
+                </div>
+
+                {/* 메타 스트립 — 1024px 이상에서만 노출, 인라인 chip 배열 */}
+                <div className="hidden lg:flex items-center gap-2 min-w-0 ml-1">
+                  <span className="inline-flex items-center h-[20px] px-1.5 rounded-[4px] bg-f-surface2 text-[10px] font-mono text-f-t3 tracking-wide">
+                    {activeCase.id || '—'}
+                  </span>
+                  <WorkflowStateBadge state={workflow.workflowState} />
+                </div>
+
+                {/* 1024px 미만에서만 상태 배지 인라인 표시 (ID chip 생략) */}
+                <div className="flex lg:hidden items-center shrink-0">
+                  <WorkflowStateBadge state={workflow.workflowState} />
+                </div>
+              </div>
+
+              {/* 우: 액션 버튼 — 1024px 미만에서 아이콘만 */}
+              <div className="flex items-center gap-2 shrink-0">
+                {workflow.workflowState === 'approved' && (
+                  <button
+                    type="button"
+                    onClick={handleRunWorkflow}
+                    aria-label="워크플로 실행"
+                    className="h-7 px-2 lg:px-2.5 bg-f-invert-bg border-none rounded-[6px] text-f-invert-fg text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:bg-f-invert-bg-hover transition-colors focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-offset-1 focus-visible:outline-none shadow-flat"
+                  >
+                    <Play size={10} fill="currentColor" />
+                    <span className="hidden lg:inline">워크플로 실행</span>
+                  </button>
+                )}
+                {workflow.workflowState === 'running' && (
+                  <button
+                    type="button"
+                    onClick={workflow.pauseWorkflow}
+                    aria-label="워크플로 일시정지"
+                    className="h-7 px-2 lg:px-2.5 bg-f-surface border border-f-border2 rounded-[6px] text-f-t2 text-[11px] font-medium cursor-pointer flex items-center gap-1.5 hover:bg-f-surface2 transition-colors focus-visible:ring-2 focus-visible:ring-f-accent focus-visible:ring-offset-1 focus-visible:outline-none"
+                  >
+                    <Pause size={10} fill="currentColor" className="text-f-warn" />
+                    <span className="hidden lg:inline">일시정지</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </header>
 
         {currentView === 'list' ? (
           <CaseListView
@@ -300,38 +378,36 @@ export default function ForensicApp() {
             setCaseFilterMenu={setCaseFilterMenu}
             onRowClick={navigateToBuilder}
             onDelete={setConfirmDeleteId}
+            onCreate={() => { resetNewCaseForm(); setNewCaseModalOpen(true); }}
           />
         ) : (
           <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* 캔버스 영역 — 빈 상태·로딩 오버레이는 WorkflowCanvas 내부에서 처리 */}
             <div className="flex-1 relative overflow-hidden bg-f-canvas-bg">
-              {isCanvasVisible ? (
-                <WorkflowCanvas
-                  editablePlan={workflow.editablePlan}
-                  workflowState={workflow.workflowState}
-                  activeStep={workflow.activeStep}
-                  selectedNode={selectedNode}
-                  onSelectNode={handleSelectNode}
-                  onEdgeClick={setSelectedEdge}
-                  dfxmlFragments={workflow.nodeDfxmlFragments}
-                  caseTitle={activeCase.title}
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-f-t4 text-xs mb-1">워크플로 캔버스</div>
-                    <div className="text-f-t4 text-[11px]">분석 계획을 승인하면 노드 그래프가 표시됩니다.</div>
-                  </div>
-                </div>
-              )}
+              <WorkflowCanvas
+                editablePlan={isCanvasVisible ? workflow.editablePlan : []}
+                workflowState={workflow.workflowState}
+                activeStep={workflow.activeStep}
+                selectedNode={selectedNode}
+                onSelectNode={handleSelectNode}
+                dfxmlFragments={workflow.nodeDfxmlFragments}
+                stepRuns={workflow.nodeStepRuns}
+                caseTitle={activeCase.title}
+              />
             </div>
 
+            {/* 드래그 스플리터 */}
             <div
-              className="w-[3px] bg-f-border hover:bg-f-accent cursor-col-resize shrink-0 z-10 transition-colors"
+              role="separator"
+              aria-label="패널 너비 조절"
+              aria-orientation="vertical"
+              className="w-[3px] bg-f-border hover:bg-f-accent cursor-col-resize shrink-0 z-10 transition-colors focus-visible:outline-none focus-visible:bg-f-accent"
               onMouseDown={startSplitterDrag}
             />
 
+            {/* 분석 패널 */}
             <div
-              className="border-l border-f-border flex flex-col min-h-0 shrink-0"
+              className="border-l border-f-border flex flex-col min-h-0 shrink-0 bg-f-surface"
               style={{ width: panelWidth }}
             >
               <WorkflowProvider value={workflowContextValue}>
@@ -342,5 +418,37 @@ export default function ForensicApp() {
         )}
       </div>
     </div>
+  );
+}
+
+/* ── 워크플로 상태 배지 — Linear 스타일 dot + label ── */
+function WorkflowStateBadge({ state }: { state: string }) {
+  const MAP: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
+    idle:                   { label: '대기',         dot: 'bg-f-border2',        text: 'text-f-t3' },
+    plan_thinking:          { label: '계획 생성',     dot: 'bg-f-warn',          text: 'text-f-t2', pulse: true },
+    strategy_review:        { label: '전략 검토',     dot: 'bg-f-accent',        text: 'text-f-t2' },
+    strategy_edit_request:  { label: '전략 수정 요청', dot: 'bg-f-warn',          text: 'text-f-t2' },
+    strategy_editing:       { label: '전략 편집',     dot: 'bg-f-warn',          text: 'text-f-t2' },
+    mcp_plan_thinking:      { label: 'MCP 계획',     dot: 'bg-f-accent',        text: 'text-f-t2', pulse: true },
+    plan_requested:         { label: '계획 검토',     dot: 'bg-f-accent',        text: 'text-f-t2' },
+    rejected:               { label: '반려',         dot: 'bg-f-danger',        text: 'text-f-t2' },
+    editing:                { label: '편집 중',       dot: 'bg-f-warn',          text: 'text-f-t2' },
+    approved:               { label: '승인됨',        dot: 'bg-f-success',       text: 'text-f-t2' },
+    running:                { label: '실행 중',       dot: 'bg-f-success',       text: 'text-f-t2', pulse: true },
+    done:                   { label: '완료',          dot: 'bg-f-t3',            text: 'text-f-t2' },
+  };
+  const entry = MAP[state] ?? { label: state, dot: 'bg-f-border2', text: 'text-f-t3' };
+  return (
+    <span className="inline-flex items-center h-[20px] px-1.5 rounded-[4px] bg-f-surface2 gap-1.5">
+      <span className="relative flex items-center justify-center">
+        <span className={`w-1.5 h-1.5 rounded-full ${entry.dot}`} />
+        {entry.pulse && (
+          <span className={`absolute inset-0 w-1.5 h-1.5 rounded-full ${entry.dot} animate-ping opacity-60`} />
+        )}
+      </span>
+      <span className={`text-[10px] font-medium leading-none ${entry.text}`}>
+        {entry.label}
+      </span>
+    </span>
   );
 }

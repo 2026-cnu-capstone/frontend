@@ -4,7 +4,7 @@ interface Props {
 
 export default function PulseLoader({ label }: Props) {
   return (
-    <div className="bg-f-surface border border-f-border rounded-md p-3 flex items-center gap-2">
+    <div className="bg-f-surface border border-f-border rounded-[8px] p-3 flex items-center gap-2 shadow-flat">
       <div className="flex gap-1">
         {[0, 1, 2].map(i => (
           <div
@@ -15,7 +15,7 @@ export default function PulseLoader({ label }: Props) {
           />
         ))}
       </div>
-      <span className="text-xs text-f-t3">{label}</span>
+      <span className="text-[12px] text-f-t3">{label}</span>
     </div>
   );
 }

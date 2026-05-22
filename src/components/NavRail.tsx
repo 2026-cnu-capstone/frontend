@@ -1,10 +1,13 @@
 'use client';
 
-import { Scale, Folder, Settings, User } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Scale, Folder, Settings, User, Sun, Moon } from 'lucide-react';
+import { useTheme } from '@/hooks/useTheme';
 
 interface Props {
   currentView: string;
   onViewChange: (v: 'list' | 'builder') => void;
+  onOpenSettings?: () => void;
 }
 
 function NavItem({
@@ -45,7 +48,23 @@ function NavItem({
   );
 }
 
-export default function NavRail({ currentView, onViewChange }: Props) {
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isDark = mounted && theme === 'dark';
+  return (
+    <span suppressHydrationWarning className="block w-full">
+      <NavItem
+        icon={mounted ? (isDark ? <Sun size={18} /> : <Moon size={18} />) : <Moon size={18} />}
+        title={mounted ? (isDark ? '라이트 모드로 전환' : '다크 모드로 전환') : '테마 전환'}
+        onClick={toggleTheme}
+      />
+    </span>
+  );
+}
+
+export default function NavRail({ currentView, onViewChange, onOpenSettings }: Props) {
   return (
     <div className="w-12 bg-f-surface border-r border-f-border flex flex-col items-center py-3 select-none z-20 shrink-0">
       <NavItem
@@ -62,7 +81,12 @@ export default function NavRail({ currentView, onViewChange }: Props) {
         onClick={() => onViewChange('list')}
       />
       <div className="mt-auto w-full flex flex-col pt-3 border-t border-f-border">
-        <NavItem icon={<Settings size={18} />} />
+        <ThemeToggle />
+        <NavItem
+          icon={<Settings size={18} />}
+          title="설정"
+          onClick={onOpenSettings}
+        />
         <NavItem icon={<User size={18} />} />
       </div>
     </div>

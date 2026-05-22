@@ -1,27 +1,31 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {
       colors: {
         f: {
-          bg: '#fafafa',
-          surface: '#ffffff',
-          surface2: '#f4f4f5',
-          border: '#e4e4e7',
-          border2: '#d4d4d8',
-          t1: '#111827',
-          t2: '#374151',
-          t3: '#6b7280',
-          t4: '#9ca3af',
-          accent: '#2563eb',
-          'accent-light': '#eff6ff',
-          success: '#16a34a',
-          warn: '#d97706',
-          danger: '#dc2626',
-          'canvas-bg': '#fafafa',
-          'dot': '#e4e4e7',
+          bg: 'var(--f-bg)',
+          surface: 'var(--f-surface)',
+          surface2: 'var(--f-surface2)',
+          border: 'var(--f-border)',
+          border2: 'var(--f-border2)',
+          t1: 'var(--f-t1)',
+          t2: 'var(--f-t2)',
+          t3: 'var(--f-t3)',
+          t4: 'var(--f-t4)',
+          accent: 'var(--f-accent)',
+          'accent-light': 'var(--f-accent-light)',
+          success: 'var(--f-success)',
+          warn: 'var(--f-warn)',
+          danger: 'var(--f-danger)',
+          'canvas-bg': 'var(--f-canvas-bg)',
+          'dot': 'var(--f-dot)',
+          'invert-bg': 'var(--f-invert-bg)',
+          'invert-bg-hover': 'var(--f-invert-bg-hover)',
+          'invert-fg': 'var(--f-invert-fg)',
         },
       },
       fontFamily: {

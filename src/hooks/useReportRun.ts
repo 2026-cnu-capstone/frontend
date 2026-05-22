@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, type CaseDetailDTO } from '@/lib/api';
 import { downloadTextFile, sanitizeFilename } from '@/lib/utils';
 import type { ActiveCase, ReportState } from '@/types';
 
@@ -44,6 +44,16 @@ export function useReportRun() {
   const handleReportReady = useCallback((data: ReportData) => {
     setReportState('done');
     setReportData(data);
+  }, []);
+
+  const hydrateFromDetail = useCallback((detail: CaseDetailDTO) => {
+    const summary = detail.report_summary ?? '';
+    const report = detail.report_markdown ?? '';
+    const dfxml = detail.report_dfxml ?? '';
+    if (summary || report || dfxml) {
+      setReportData({ summary, report, dfxml });
+      setReportState('done');
+    }
   }, []);
 
   const approveReport = useCallback(async (caseId: string) => {
@@ -111,6 +121,7 @@ export function useReportRun() {
     markRunStart,
     markRunCompleted,
     handleReportReady,
+    hydrateFromDetail,
     approveReport,
     downloadReport,
     downloadDfxml,

@@ -1,14 +1,38 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
-import type { ActiveCase, Case } from '@/types';
+import type { ActiveCase, Case, WorkflowState } from '@/types';
+
+const WORKFLOW_STATE_SET = new Set<WorkflowState>([
+  'idle',
+  'plan_thinking',
+  'strategy_review',
+  'strategy_edit_request',
+  'strategy_editing',
+  'mcp_plan_thinking',
+  'plan_requested',
+  'rejected',
+  'editing',
+  'approved',
+  'running',
+  'done',
+]);
+
+function normalizeWorkflowState(raw: unknown): WorkflowState | undefined {
+  if (typeof raw !== 'string') return undefined;
+  return WORKFLOW_STATE_SET.has(raw as WorkflowState) ? (raw as WorkflowState) : undefined;
+}
 
 function coerceCase(raw: Record<string, unknown>): Case {
+  const createdAt = String(raw.date ?? raw.created_at ?? new Date().toISOString().slice(0, 10));
+  const updatedAtRaw = raw.lastActivityAt ?? raw.updated_at;
   return {
     id: String(raw.id ?? ''),
     title: String(raw.title ?? raw.name ?? ''),
     analyst: String(raw.analyst ?? '-'),
     size: String(raw.size ?? '-'),
-    date: String(raw.date ?? new Date().toISOString().slice(0, 10)),
+    date: createdAt,
+    workflowState: normalizeWorkflowState(raw.workflowState ?? raw.status),
+    lastActivityAt: updatedAtRaw ? String(updatedAtRaw) : undefined,
   };
 }
 
@@ -33,11 +57,15 @@ export function useCases() {
     return () => { cancelled = true; };
   }, []);
 
-  const createCase = useCallback(async (title: string) => {
-    const trimmed = title.trim();
-    if (!trimmed) return null;
+  const createCase = useCallback(async (payload: {
+    title: string;
+    analyst: string;
+  }) => {
+    const title = payload.title.trim();
+    const analyst = payload.analyst.trim();
+    if (!title || !analyst) return null;
     try {
-      const created = await api.createCase({ name: trimmed });
+      const created = await api.createCase({ name: title, analyst });
       const normalized = coerceCase(created);
       setCases(prev => [normalized, ...prev]);
       return normalized;

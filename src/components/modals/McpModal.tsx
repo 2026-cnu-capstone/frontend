@@ -78,7 +78,7 @@ export default function McpModal({ stepIdx, editablePlan, mcpSearch, setMcpSearc
                           {tool.name}
                         </span>
                         {isSelected && (
-                          <span className="text-[9px] font-semibold text-f-accent bg-blue-50 px-1.5 py-[1px] rounded">현재 선택</span>
+                          <span className="text-[9px] font-semibold text-f-accent bg-blue-50 px-1.5 py-[1px] rounded dark:bg-f-accent-light">현재 선택</span>
                         )}
                       </div>
                       <span className="text-[11px] text-f-t3 leading-snug">{tool.desc}</span>

@@ -5,21 +5,72 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --f-bg: #fafafa;
+  --f-surface: #ffffff;
+  --f-surface2: #f4f4f5;
+  --f-border: #e4e4e7;
+  --f-border2: #d4d4d8;
+  --f-t1: #111827;
+  --f-t2: #374151;
+  --f-t3: #6b7280;
+  --f-t4: #9ca3af;
+  --f-accent: #2563eb;
+  --f-accent-light: #eff6ff;
+  --f-success: #16a34a;
+  --f-warn: #d97706;
+  --f-danger: #dc2626;
+  --f-canvas-bg: #fafafa;
+  --f-dot: #e4e4e7;
+  --f-invert-bg: #111827;
+  --f-invert-bg-hover: #000000;
+  --f-invert-fg: #ffffff;
+  --f-scrollbar: #d4d4d8;
+  --f-scrollbar-hover: #a1a1aa;
+  --f-selection: rgba(37, 99, 235, 0.16);
+}
+
+.dark {
+  --f-bg: #0b0b0d;
+  --f-surface: #141418;
+  --f-surface2: #1d1d22;
+  --f-border: #2a2a30;
+  --f-border2: #3a3a42;
+  --f-t1: #f4f4f5;
+  --f-t2: #d4d4d8;
+  --f-t3: #a1a1aa;
+  --f-t4: #71717a;
+  --f-accent: #60a5fa;
+  --f-accent-light: #1e293b;
+  --f-success: #4ade80;
+  --f-warn: #fbbf24;
+  --f-danger: #f87171;
+  --f-canvas-bg: #0b0b0d;
+  --f-dot: #2a2a30;
+  --f-invert-bg: #f4f4f5;
+  --f-invert-bg-hover: #ffffff;
+  --f-invert-fg: #111827;
+  --f-scrollbar: #3a3a42;
+  --f-scrollbar-hover: #52525b;
+  --f-selection: rgba(96, 165, 250, 0.24);
+}
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { font-feature-settings: 'cv11', 'ss01', 'ss03'; }
 body {
-  background: #fafafa;
-  color: #111827;
+  background: var(--f-bg);
+  color: var(--f-t1);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.005em;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-::selection { background: rgba(37, 99, 235, 0.16); }
+::selection { background: var(--f-selection); }
 
 :focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--f-accent);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -29,10 +80,13 @@ textarea, input { font-family: inherit; }
 .cp-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
 .cp-scroll::-webkit-scrollbar-track { background: transparent; }
 .cp-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
-.cp-scroll:hover::-webkit-scrollbar-thumb { background: #d4d4d8; }
-.cp-scroll::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+.cp-scroll:hover::-webkit-scrollbar-thumb { background: var(--f-scrollbar); }
+.cp-scroll::-webkit-scrollbar-thumb:hover { background: var(--f-scrollbar-hover); }
 
 /* React Flow overrides */
 .react-flow__attribution { display: none; }
 .react-flow__handle { opacity: 0 !important; pointer-events: none !important; }
 .react-flow__edge-path { stroke-linecap: round; }
+.dark .react-flow__controls-button { background: var(--f-surface) !important; color: var(--f-t3) !important; }
+.dark .react-flow__controls-button:hover { color: var(--f-t1) !important; }
+.dark .react-flow__controls-button svg { fill: currentColor !important; }

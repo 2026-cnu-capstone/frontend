@@ -75,20 +75,20 @@ export default function ReportViewerModal({
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-4 py-3.5 border-b border-f-border flex justify-between items-center shrink-0 bg-slate-800">
-          <span className="text-[13px] font-semibold text-slate-100 flex items-center gap-1.5">
-            <FileText size={14} className="text-sky-300" /> 디지털 포렌식 분석 보고서
+        <div className="px-4 py-3.5 border-b border-f-border flex justify-between items-center shrink-0 bg-slate-800 dark:bg-f-surface2">
+          <span className="text-[13px] font-semibold text-slate-100 flex items-center gap-1.5 dark:text-f-t1">
+            <FileText size={14} className="text-sky-300 dark:text-f-accent" /> 디지털 포렌식 분석 보고서
           </span>
           <button
             onClick={onClose}
-            className="w-6 h-6 border-none bg-white/10 rounded cursor-pointer flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors"
+            className="w-6 h-6 border-none bg-white/10 rounded cursor-pointer flex items-center justify-center text-slate-400 hover:text-slate-200 transition-colors dark:bg-f-surface dark:text-f-t3 dark:hover:text-f-t1"
           >
             <X size={14} />
           </button>
         </div>
 
         {/* Body */}
-        <div className="overflow-y-auto cp-scroll px-7 py-6 flex flex-col gap-5 bg-slate-50">
+        <div className="overflow-y-auto cp-scroll px-7 py-6 flex flex-col gap-5 bg-slate-50 dark:bg-f-bg">
           <div className="flex justify-between items-start">
             <div>
               <div className="text-lg font-bold text-f-t1 mb-1">디지털 포렌식 분석 보고서</div>
@@ -96,7 +96,7 @@ export default function ReportViewerModal({
                 생성일: {new Date().toISOString().slice(0, 10)}
               </div>
             </div>
-            <span className="px-2.5 py-1 bg-green-50 border border-green-200 rounded text-[11px] text-f-success font-semibold">
+            <span className="px-2.5 py-1 bg-green-50 border border-green-200 rounded text-[11px] text-f-success font-semibold dark:bg-green-950/40 dark:border-green-900/50">
               {report ? '최종본' : '생성 중'}
             </span>
           </div>
@@ -150,17 +150,17 @@ export default function ReportViewerModal({
                 <div key={item.step} className="flex gap-3 mb-2.5">
                   <div className={`w-[22px] h-[22px] rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
                     isSuccess
-                      ? 'bg-green-50 border border-green-200 text-f-success'
+                      ? 'bg-green-50 border border-green-200 text-f-success dark:bg-green-950/40 dark:border-green-900/50'
                       : r?.status === 'error'
-                        ? 'bg-red-50 border border-red-200 text-f-danger'
-                        : 'bg-gray-50 border border-gray-200 text-f-t3'
+                        ? 'bg-red-50 border border-red-200 text-f-danger dark:bg-red-950/40 dark:border-red-900/50'
+                        : 'bg-gray-50 border border-gray-200 text-f-t3 dark:bg-f-surface2 dark:border-f-border'
                   }`}>
                     {item.step}
                   </div>
                   <div className="flex-1 bg-f-surface border border-f-border rounded-[5px] px-3 py-2.5">
                     <div className="flex justify-between mb-1">
                       <span className="text-xs font-semibold text-f-t1">{item.name}</span>
-                      <span className="text-[10px] font-mono text-f-accent bg-blue-50 px-1.5 py-[2px] rounded">{item.mcp}</span>
+                      <span className="text-[10px] font-mono text-f-accent bg-blue-50 px-1.5 py-[2px] rounded dark:bg-f-accent-light">{item.mcp}</span>
                     </div>
                     <span className="text-[11px] text-f-t3">
                       {r?.output
@@ -200,7 +200,7 @@ export default function ReportViewerModal({
           </button>
           <button
             onClick={handleDownload}
-            className="h-[30px] px-3.5 bg-f-accent border-none rounded text-white text-[11px] font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 transition-colors"
+            className="h-[30px] px-3.5 bg-f-accent border-none rounded text-white text-[11px] font-medium cursor-pointer flex items-center gap-1 hover:bg-blue-700 dark:hover:bg-blue-400 transition-colors"
           >
             <Download size={12} /> 보고서 다운로드
           </button>
