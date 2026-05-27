@@ -38,6 +38,17 @@ export const MOCK_CASES: CaseRow[] = [
     updated_at: '2023-09-03T09:11:00Z',
   },
   {
+    id: 'DF-2024-0312',
+    title: '내부 PC 의심 행위 — 계획 승인 완료',
+    description: '계획 승인까지 마친 상태 — 노드뷰에서 곧바로 실행 가능',
+    user_prompt: '의심 PC 의 흔적 분석 계획을 잡고 단계 실행 직전 상태를 보여주세요.',
+    disk_image_path: '/data/cases/DF-2024-0312/disk.E01',
+    analyst: '최분석',
+    status: 'approved',
+    created_at: '2024-03-12T10:00:00Z',
+    updated_at: '2024-03-12T10:15:00Z',
+  },
+  {
     id: 'DF-2023-0910',
     title: '사내 기밀 유출 타임라인 분석',
     description: '내부자 의심 데이터 유출',

@@ -51,6 +51,71 @@ function ensureArtifacts(caseId: string): CaseArtifacts {
   return entry;
 }
 
+/* ──────────────────────────────────────────────────────────────
+ * 기존 mock 케이스용 시드 — 클릭 즉시 노드뷰를 볼 수 있도록
+ * 케이스 status 에 맞춘 사전 상태를 caseArtifacts 에 적재한다.
+ *   - 'done'    → plan + 전체 step_results + report 모두 채움
+ *   - 'running' → plan + 일부 step_results (앞쪽 5단계만 완료)
+ *   - 'approved'→ plan 만 채움 (실행 직전)
+ *   - 'rejected'→ strategy 만 작성된 상태
+ *   - 'idle'    → 시드 없음
+ * ────────────────────────────────────────────────────────────── */
+
+const DEFAULT_SYSTEM_PROFILE = 'Windows 10 (NTFS) — RAM 8GB';
+
+function buildFullStepResults(caseId: string): CaseStepResultDTO[] {
+  const now = new Date().toISOString();
+  return MOCK_PLAN_STEPS.map((s, i) => ({
+    step_index: s.step_index,
+    task_id: `${caseId}-${i + 1}`,
+    agent_name: s.mcp_server,
+    status: 'success',
+    content: s.purpose,
+    output: `[mock] ${s.name} 단계 완료`,
+    raw_output_ref: null,
+    elapsed_ms: 700,
+    artifacts: s.artifacts,
+    dfxml_fragment: MOCK_DFXML_FRAGMENTS[i] ?? null,
+    started_at: now,
+    completed_at: now,
+    created_at: now,
+  }));
+}
+
+function seedCaseArtifacts() {
+  for (const c of MOCK_CASES) {
+    const a = ensureArtifacts(c.id);
+    a.user_prompt = c.user_prompt ?? '';
+
+    if (c.status === 'done') {
+      a.system_profile = DEFAULT_SYSTEM_PROFILE;
+      a.analysis_strategy = MOCK_STRATEGY_TEXT;
+      a.analysis_plan = MOCK_PLAN_TEXT;
+      a.plan_round = 1;
+      a.step_results = buildFullStepResults(c.id);
+      a.report_summary = MOCK_REPORT_SUMMARY;
+      a.report_text = MOCK_REPORT_MARKDOWN;
+      a.report_dfxml = MOCK_REPORT_DFXML;
+    } else if (c.status === 'running') {
+      a.system_profile = DEFAULT_SYSTEM_PROFILE;
+      a.analysis_strategy = MOCK_STRATEGY_TEXT;
+      a.analysis_plan = MOCK_PLAN_TEXT;
+      a.plan_round = 1;
+      a.step_results = buildFullStepResults(c.id).slice(0, 5);
+    } else if (c.status === 'approved') {
+      a.system_profile = DEFAULT_SYSTEM_PROFILE;
+      a.analysis_strategy = MOCK_STRATEGY_TEXT;
+      a.analysis_plan = MOCK_PLAN_TEXT;
+      a.plan_round = 1;
+    } else if (c.status === 'rejected') {
+      a.system_profile = DEFAULT_SYSTEM_PROFILE;
+      a.analysis_strategy = MOCK_STRATEGY_TEXT;
+    }
+  }
+}
+
+seedCaseArtifacts();
+
 export const restHandlers = [
   // ─────────────────── 케이스 ───────────────────
   http.get(`${API_BASE}/api/cases`, async () => {
@@ -211,7 +276,7 @@ export const restHandlers = [
       ...s,
       mcp_server: i === 5 ? 'NetworkMiner MCP' : s.mcp_server,
     }));
-    const revisedText = revised.map(s => `${s.step_index}. ${s.name} (${s.mcp_server})`).join('\n');
+    const revisedText = revised.map(s => `${s.step_index + 1}. ${s.name} (${s.mcp_server})`).join('\n');
     a.analysis_plan = revisedText;
     a.plan_round += 1;
     return HttpResponse.json({
@@ -230,7 +295,7 @@ export const restHandlers = [
     const a = ensureArtifacts(caseId);
     const now = new Date().toISOString();
     a.step_results = MOCK_PLAN_STEPS.map((s, i) => ({
-      step_index: i,
+      step_index: s.step_index,
       task_id: `${caseId}-${i + 1}`,
       agent_name: s.mcp_server,
       status: 'success',
