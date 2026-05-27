@@ -1,25 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { isWorkflowState } from '@/lib/workflow-state';
 import type { ActiveCase, Case, WorkflowState } from '@/types';
 
-const WORKFLOW_STATE_SET = new Set<WorkflowState>([
-  'idle',
-  'plan_thinking',
-  'strategy_review',
-  'strategy_edit_request',
-  'strategy_editing',
-  'mcp_plan_thinking',
-  'plan_requested',
-  'rejected',
-  'editing',
-  'approved',
-  'running',
-  'done',
-]);
-
 function normalizeWorkflowState(raw: unknown): WorkflowState | undefined {
-  if (typeof raw !== 'string') return undefined;
-  return WORKFLOW_STATE_SET.has(raw as WorkflowState) ? (raw as WorkflowState) : undefined;
+  return isWorkflowState(raw) ? raw : undefined;
 }
 
 function coerceCase(raw: Record<string, unknown>): Case {

@@ -8,113 +8,13 @@ import {
   MOCK_REPORT_MARKDOWN,
   MOCK_REPORT_DFXML,
 } from '../data/report';
+import { caseArtifacts, ensureArtifacts } from '../data/seed';
 import { simulateExecution, emitReportReady } from './ws';
-import type { CaseStepResultDTO } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // 분석 세션의 단계 시퀀스 — WS handler가 참조한다
 export const sessionState = new Map<string, { stepCount: number }>();
-
-// 케이스별 분석 산출물 캐시 (재진입 시 detail/plan/results 복원용).
-// DB 의 analysis_sessions + reports + task_results 를 평탄화해 모았다.
-interface CaseArtifacts {
-  user_prompt: string;
-  system_profile: string | null;         // analysis_sessions.system_profile
-  analysis_strategy: string | null;      // analysis_sessions.strategy
-  analysis_plan: string | null;          // analysis_sessions.plan_text
-  report_summary: string | null;         // reports.summary
-  report_text: string | null;            // reports.report_text
-  report_dfxml: string | null;           // reports.dfxml
-  plan_round: number;
-  step_results: CaseStepResultDTO[];
-}
-
-const caseArtifacts = new Map<string, CaseArtifacts>();
-
-function ensureArtifacts(caseId: string): CaseArtifacts {
-  let entry = caseArtifacts.get(caseId);
-  if (!entry) {
-    entry = {
-      user_prompt: '',
-      system_profile: null,
-      analysis_strategy: null,
-      analysis_plan: null,
-      report_summary: null,
-      report_text: null,
-      report_dfxml: null,
-      plan_round: 0,
-      step_results: [],
-    };
-    caseArtifacts.set(caseId, entry);
-  }
-  return entry;
-}
-
-/* ──────────────────────────────────────────────────────────────
- * 기존 mock 케이스용 시드 — 클릭 즉시 노드뷰를 볼 수 있도록
- * 케이스 status 에 맞춘 사전 상태를 caseArtifacts 에 적재한다.
- *   - 'done'    → plan + 전체 step_results + report 모두 채움
- *   - 'running' → plan + 일부 step_results (앞쪽 5단계만 완료)
- *   - 'approved'→ plan 만 채움 (실행 직전)
- *   - 'rejected'→ strategy 만 작성된 상태
- *   - 'idle'    → 시드 없음
- * ────────────────────────────────────────────────────────────── */
-
-const DEFAULT_SYSTEM_PROFILE = 'Windows 10 (NTFS) — RAM 8GB';
-
-function buildFullStepResults(caseId: string): CaseStepResultDTO[] {
-  const now = new Date().toISOString();
-  return MOCK_PLAN_STEPS.map((s, i) => ({
-    step_index: s.step_index,
-    task_id: `${caseId}-${i + 1}`,
-    agent_name: s.mcp_server,
-    status: 'success',
-    content: s.purpose,
-    output: `[mock] ${s.name} 단계 완료`,
-    raw_output_ref: null,
-    elapsed_ms: 700,
-    artifacts: s.artifacts,
-    dfxml_fragment: MOCK_DFXML_FRAGMENTS[i] ?? null,
-    started_at: now,
-    completed_at: now,
-    created_at: now,
-  }));
-}
-
-function seedCaseArtifacts() {
-  for (const c of MOCK_CASES) {
-    const a = ensureArtifacts(c.id);
-    a.user_prompt = c.user_prompt ?? '';
-
-    if (c.status === 'done') {
-      a.system_profile = DEFAULT_SYSTEM_PROFILE;
-      a.analysis_strategy = MOCK_STRATEGY_TEXT;
-      a.analysis_plan = MOCK_PLAN_TEXT;
-      a.plan_round = 1;
-      a.step_results = buildFullStepResults(c.id);
-      a.report_summary = MOCK_REPORT_SUMMARY;
-      a.report_text = MOCK_REPORT_MARKDOWN;
-      a.report_dfxml = MOCK_REPORT_DFXML;
-    } else if (c.status === 'running') {
-      a.system_profile = DEFAULT_SYSTEM_PROFILE;
-      a.analysis_strategy = MOCK_STRATEGY_TEXT;
-      a.analysis_plan = MOCK_PLAN_TEXT;
-      a.plan_round = 1;
-      a.step_results = buildFullStepResults(c.id).slice(0, 5);
-    } else if (c.status === 'approved') {
-      a.system_profile = DEFAULT_SYSTEM_PROFILE;
-      a.analysis_strategy = MOCK_STRATEGY_TEXT;
-      a.analysis_plan = MOCK_PLAN_TEXT;
-      a.plan_round = 1;
-    } else if (c.status === 'rejected') {
-      a.system_profile = DEFAULT_SYSTEM_PROFILE;
-      a.analysis_strategy = MOCK_STRATEGY_TEXT;
-    }
-  }
-}
-
-seedCaseArtifacts();
 
 export const restHandlers = [
   // ─────────────────── 케이스 ───────────────────

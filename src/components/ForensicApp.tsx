@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ChevronRight, Play, Pause, Plus } from 'lucide-react';
 
@@ -14,6 +14,7 @@ import ReportViewerModal from './modals/ReportViewerModal';
 import SettingsModal from './modals/SettingsModal';
 
 import { detectDiskImageFormat } from '@/lib/utils';
+import { isCanvasVisible, WORKFLOW_STATE_BADGE } from '@/lib/workflow-state';
 import { useAnalysisWebSocket } from '@/hooks/useAnalysisWebSocket';
 import { useSplitter } from '@/hooks/useSplitter';
 import { useCases } from '@/hooks/useCases';
@@ -21,7 +22,7 @@ import { useReportRun } from '@/hooks/useReportRun';
 import { useWorkflow } from '@/hooks/useWorkflow';
 import { WorkflowProvider, type WorkflowContextValue } from '@/contexts/WorkflowContext';
 import type {
-  ActiveCase, McpModalState, CaseSort,
+  ActiveCase, McpModalState, CaseSort, WorkflowState,
 } from '@/types';
 
 const WorkflowCanvas = dynamic(() => import('./WorkflowCanvas'), { ssr: false });
@@ -163,9 +164,9 @@ export default function ForensicApp() {
     return workflow.runWorkflow();
   }, [workflow]);
 
-  const isCanvasVisible = ['approved', 'running', 'done'].includes(workflow.workflowState);
+  const canvasVisible = isCanvasVisible(workflow.workflowState);
 
-  const workflowContextValue: WorkflowContextValue = {
+  const workflowContextValue = useMemo<WorkflowContextValue>(() => ({
     workflowState: workflow.workflowState,
     diskImagePath,
     setDiskImagePath,
@@ -215,7 +216,12 @@ export default function ForensicApp() {
       if (file) setAttachedFile({ name: file.name });
       e.target.value = '';
     },
-  };
+  }), [
+    workflow, reportRun, diskImagePath, diskImageCheck, diskImageReady,
+    pathStepDone, attachedFile, chatInputText, submittedPrompt, showReasoning,
+    handleIntakeSubmit, handleStrategyEditSubmit, handleApproveReport,
+    handleDownloadReport, handleDownloadDfxml, openMcpModal,
+  ]);
 
   return (
     <div className="flex h-screen w-screen bg-f-bg text-f-t1 overflow-hidden font-sans text-[13px]">
@@ -385,7 +391,7 @@ export default function ForensicApp() {
             {/* 캔버스 영역 — 빈 상태·로딩 오버레이는 WorkflowCanvas 내부에서 처리 */}
             <div className="flex-1 relative overflow-hidden bg-f-canvas-bg">
               <WorkflowCanvas
-                editablePlan={isCanvasVisible ? workflow.editablePlan : []}
+                editablePlan={canvasVisible ? workflow.editablePlan : []}
                 workflowState={workflow.workflowState}
                 activeStep={workflow.activeStep}
                 selectedNode={selectedNode}
@@ -421,23 +427,11 @@ export default function ForensicApp() {
   );
 }
 
-/* ── 워크플로 상태 배지 — Linear 스타일 dot + label ── */
-function WorkflowStateBadge({ state }: { state: string }) {
-  const MAP: Record<string, { label: string; dot: string; text: string; pulse?: boolean }> = {
-    idle:                   { label: '대기',         dot: 'bg-f-border2',        text: 'text-f-t3' },
-    plan_thinking:          { label: '계획 생성',     dot: 'bg-f-warn',          text: 'text-f-t2', pulse: true },
-    strategy_review:        { label: '전략 검토',     dot: 'bg-f-accent',        text: 'text-f-t2' },
-    strategy_edit_request:  { label: '전략 수정 요청', dot: 'bg-f-warn',          text: 'text-f-t2' },
-    strategy_editing:       { label: '전략 편집',     dot: 'bg-f-warn',          text: 'text-f-t2' },
-    mcp_plan_thinking:      { label: 'MCP 계획',     dot: 'bg-f-accent',        text: 'text-f-t2', pulse: true },
-    plan_requested:         { label: '계획 검토',     dot: 'bg-f-accent',        text: 'text-f-t2' },
-    rejected:               { label: '반려',         dot: 'bg-f-danger',        text: 'text-f-t2' },
-    editing:                { label: '편집 중',       dot: 'bg-f-warn',          text: 'text-f-t2' },
-    approved:               { label: '승인됨',        dot: 'bg-f-success',       text: 'text-f-t2' },
-    running:                { label: '실행 중',       dot: 'bg-f-success',       text: 'text-f-t2', pulse: true },
-    done:                   { label: '완료',          dot: 'bg-f-t3',            text: 'text-f-t2' },
-  };
-  const entry = MAP[state] ?? { label: state, dot: 'bg-f-border2', text: 'text-f-t3' };
+/* ── 워크플로 상태 배지 — Linear 스타일 dot + label
+ * 배지 메타데이터는 lib/workflow-state.ts 의 WORKFLOW_STATE_BADGE 한 곳에서 관리한다.
+ * ─────────────────────────────────────────────────────────────────── */
+function WorkflowStateBadge({ state }: { state: WorkflowState }) {
+  const entry = WORKFLOW_STATE_BADGE[state] ?? { label: state, dot: 'bg-f-border2', text: 'text-f-t3' };
   return (
     <span className="inline-flex items-center h-[20px] px-1.5 rounded-[4px] bg-f-surface2 gap-1.5">
       <span className="relative flex items-center justify-center">

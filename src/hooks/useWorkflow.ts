@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, type CasePlanStepDTO } from '@/lib/api';
 import { recommendMcpForStrategyStep } from '@/lib/utils';
+import { statusToWorkflowState } from '@/lib/workflow-state';
 import type { WsEvent } from '@/hooks/useAnalysisWebSocket';
 import type { TaskResult, ReportData } from '@/hooks/useReportRun';
 import type { PlanStep, RejectionRecord, StepRun, StrategyStep, WorkflowState } from '@/types';
@@ -19,7 +20,7 @@ function parseStrategyLines(strategy: string): StrategyStep[] {
     .map((l, i) => ({ id: i + 1, text: l.replace(/^-\s*/, '').trim() }));
 }
 
-function parsePlanSteps(steps: any[]): PlanStep[] {
+function parsePlanSteps(steps: CasePlanStepDTO[]): PlanStep[] {
   return steps.map((s, i) => ({
     step: i + 1,
     name: s.name || s.purpose || '',
@@ -227,19 +228,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
         setStrategySteps(parseStrategyLines(detail.analysis_strategy));
       }
       if (plan.steps.length > 0) {
-        setEditablePlan(
-          plan.steps.map((s, i) => ({
-            step: i + 1,
-            name: s.name ?? s.purpose ?? '',
-            mcp: s.mcp_server && s.mcp_server.toLowerCase() !== 'none'
-              ? s.mcp_server
-              : 'Dissect MCP',
-            purpose: s.purpose ?? undefined,
-            hints: s.hints ?? undefined,
-            artifactsHint: (s.artifacts as unknown[] | null | undefined) ?? null,
-            isFollowup: s.is_followup ?? false,
-          })),
-        );
+        setEditablePlan(parsePlanSteps(plan.steps));
         setPlanRound(plan.plan_round || 1);
       }
 
@@ -259,17 +248,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
       setNodeDfxmlFragments(frags);
       setNodeStepRuns(runs);
 
-      const statusToState: Record<string, WorkflowState> = {
-        open: 'idle',
-        strategy: 'strategy_review',
-        plan: 'plan_requested',
-        approved: 'approved',
-        running: 'running',
-        executed: 'done',
-        done: 'done',
-        failed: 'idle',
-      };
-      setWorkflowState(statusToState[detail.status] ?? 'idle');
+      setWorkflowState(statusToWorkflowState(detail.status));
     } catch (e) {
       console.error('restoreFromCase failed:', e);
     }
