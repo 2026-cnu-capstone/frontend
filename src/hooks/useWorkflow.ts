@@ -26,7 +26,7 @@ function parsePlanSteps(steps: any[]): PlanStep[] {
     mcp: s.mcp_server && s.mcp_server.toLowerCase() !== 'none' ? s.mcp_server : 'Dissect MCP',
     purpose: s.purpose ?? undefined,
     hints: s.hints ?? undefined,
-    artifactsHint: s.artifacts_hint ?? s.artifacts ?? null,
+    artifactsHint: (s.artifacts as unknown[] | null | undefined) ?? null,
     isFollowup: s.is_followup ?? false,
   }));
 }
@@ -230,13 +230,13 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
         setEditablePlan(
           plan.steps.map((s, i) => ({
             step: i + 1,
-            name: s.name,
+            name: s.name ?? s.purpose ?? '',
             mcp: s.mcp_server && s.mcp_server.toLowerCase() !== 'none'
               ? s.mcp_server
               : 'Dissect MCP',
             purpose: s.purpose ?? undefined,
             hints: s.hints ?? undefined,
-            artifactsHint: s.artifacts_hint ?? null,
+            artifactsHint: (s.artifacts as unknown[] | null | undefined) ?? null,
             isFollowup: s.is_followup ?? false,
           })),
         );
@@ -249,7 +249,7 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
         if (r.dfxml_fragment) frags[r.step_index] = r.dfxml_fragment;
         runs[r.step_index] = {
           status: r.status,
-          output: r.output,
+          output: r.output ?? undefined,
           elapsedMs: r.elapsed_ms ?? null,
           agentName: r.agent_name,
           startedAt: r.started_at,
@@ -317,7 +317,11 @@ export function useWorkflow({ caseId, markRunStart, markRunCompleted, handleRepo
           break;
         case 'report_ready':
           if ('summary' in event) {
-            handleReportReady({ summary: event.summary, report: event.report, dfxml: event.dfxml });
+            handleReportReady({
+              summary: event.summary,
+              report_text: event.report_text,
+              dfxml: event.dfxml,
+            });
           }
           break;
         case 'error':

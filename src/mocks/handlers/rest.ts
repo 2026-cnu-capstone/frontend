@@ -9,34 +9,25 @@ import {
   MOCK_REPORT_DFXML,
 } from '../data/report';
 import { simulateExecution, emitReportReady } from './ws';
+import type { CaseStepResultDTO } from '@/lib/api';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // 분석 세션의 단계 시퀀스 — WS handler가 참조한다
 export const sessionState = new Map<string, { stepCount: number }>();
 
-// 케이스별 분석 산출물 캐시 (재진입 시 detail/plan/results 복원용)
+// 케이스별 분석 산출물 캐시 (재진입 시 detail/plan/results 복원용).
+// DB 의 analysis_sessions + reports + task_results 를 평탄화해 모았다.
 interface CaseArtifacts {
   user_prompt: string;
-  system_profile: string | null;
-  analysis_strategy: string | null;
-  analysis_plan: string | null;
-  report_summary: string | null;
-  report_markdown: string | null;
-  report_dfxml: string | null;
+  system_profile: string | null;         // analysis_sessions.system_profile
+  analysis_strategy: string | null;      // analysis_sessions.strategy
+  analysis_plan: string | null;          // analysis_sessions.plan_text
+  report_summary: string | null;         // reports.summary
+  report_text: string | null;            // reports.report_text
+  report_dfxml: string | null;           // reports.dfxml
   plan_round: number;
-  step_results: Array<{
-    step_index: number;
-    task_id: string;
-    agent_name: string;
-    status: string;
-    output: string;
-    elapsed_ms: number | null;
-    artifacts: unknown[] | null;
-    dfxml_fragment: string | null;
-    started_at: string;
-    completed_at: string | null;
-  }>;
+  step_results: CaseStepResultDTO[];
 }
 
 const caseArtifacts = new Map<string, CaseArtifacts>();
@@ -50,7 +41,7 @@ function ensureArtifacts(caseId: string): CaseArtifacts {
       analysis_strategy: null,
       analysis_plan: null,
       report_summary: null,
-      report_markdown: null,
+      report_text: null,
       report_dfxml: null,
       plan_round: 0,
       step_results: [],
@@ -78,10 +69,11 @@ export const restHandlers = [
 
   http.post(`${API_BASE}/api/cases`, async ({ request }) => {
     const body = (await request.json()) as {
-      name?: string;
+      title?: string;
+      name?: string;            // 구버전 호환
       description?: string;
+      user_prompt?: string;
       disk_image_path?: string;
-      disk_image_format?: string;
       analyst?: string;
     };
     await delay(120);
@@ -89,17 +81,18 @@ export const restHandlers = [
     const now = new Date().toISOString();
     const created = {
       id,
-      title: body.name ?? '새 케이스',
-      analyst: body.analyst ?? '-',
+      title: body.title ?? body.name ?? '새 케이스',
+      description: body.description ?? null,
+      user_prompt: body.user_prompt ?? body.description ?? null,
+      disk_image_path: body.disk_image_path ?? null,
+      analyst: body.analyst ?? null,
       status: 'idle',
-      disk_image_path: body.disk_image_path ?? '',
-      disk_image_format: body.disk_image_format ?? '',
       created_at: now,
       updated_at: now,
     };
     MOCK_CASES.unshift(created);
     const artifacts = ensureArtifacts(id);
-    artifacts.user_prompt = body.description ?? '';
+    artifacts.user_prompt = created.user_prompt ?? '';
     return HttpResponse.json(created, { status: 201 });
   }),
 
@@ -125,12 +118,12 @@ export const restHandlers = [
     await delay(100);
     return HttpResponse.json({
       ...found,
-      user_prompt: a.user_prompt,
+      user_prompt: a.user_prompt || found.user_prompt,
       system_profile: a.system_profile,
       analysis_strategy: a.analysis_strategy,
       analysis_plan: a.analysis_plan,
       report_summary: a.report_summary,
-      report_markdown: a.report_markdown,
+      report_text: a.report_text,
       report_dfxml: a.report_dfxml,
     });
   }),
@@ -200,7 +193,7 @@ export const restHandlers = [
     a.plan_round = 1;
     return HttpResponse.json({
       plan_text: MOCK_PLAN_TEXT,
-      steps: MOCK_PLAN_STEPS,
+      steps: MOCK_PLAN_STEPS.map(s => toPlanStepOut(s)),
       plan_ready: true,
     });
   }),
@@ -218,12 +211,12 @@ export const restHandlers = [
       ...s,
       mcp_server: i === 5 ? 'NetworkMiner MCP' : s.mcp_server,
     }));
-    const revisedText = revised.map(s => `${s.index}. ${s.name} (${s.mcp_server})`).join('\n');
+    const revisedText = revised.map(s => `${s.step_index}. ${s.name} (${s.mcp_server})`).join('\n');
     a.analysis_plan = revisedText;
     a.plan_round += 1;
     return HttpResponse.json({
       plan_text: revisedText,
-      steps: revised,
+      steps: revised.map(s => toPlanStepOut(s)),
       plan_ready: true,
     });
   }),
@@ -235,17 +228,21 @@ export const restHandlers = [
     const session = sessionState.get(caseId) ?? { stepCount: MOCK_PLAN_STEPS.length };
     sessionState.set(caseId, session);
     const a = ensureArtifacts(caseId);
+    const now = new Date().toISOString();
     a.step_results = MOCK_PLAN_STEPS.map((s, i) => ({
       step_index: i,
       task_id: `${caseId}-${i + 1}`,
       agent_name: s.mcp_server,
       status: 'success',
+      content: s.purpose,
       output: `[mock] ${s.name} 단계 완료`,
+      raw_output_ref: null,
       elapsed_ms: 700,
-      artifacts: null,
+      artifacts: s.artifacts,
       dfxml_fragment: MOCK_DFXML_FRAGMENTS[i] ?? null,
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
+      started_at: now,
+      completed_at: now,
+      created_at: now,
     }));
     await delay(150);
     setTimeout(() => simulateExecution(caseId), 200);
@@ -261,12 +258,12 @@ export const restHandlers = [
     const caseId = params.caseId as string;
     const payload = {
       summary: MOCK_REPORT_SUMMARY,
-      report: MOCK_REPORT_MARKDOWN,
+      report_text: MOCK_REPORT_MARKDOWN,
       dfxml: MOCK_REPORT_DFXML,
     };
     const a = ensureArtifacts(caseId);
     a.report_summary = payload.summary;
-    a.report_markdown = payload.report;
+    a.report_text = payload.report_text;
     a.report_dfxml = payload.dfxml;
     await delay(1100);
     setTimeout(() => emitReportReady(caseId, payload), 50);
