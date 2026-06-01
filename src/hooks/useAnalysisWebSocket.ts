@@ -29,12 +29,13 @@ export interface WsPlanEvent {
   type: 'plan_ready';
   plan_text: string;
   steps: Array<{
-    index: number;
-    name: string;
-    mcp_server: string;
-    purpose: string;
-    artifacts: string[];
-    hints: string;
+    step_index: number;
+    name?: string;
+    mcp_server: string | null;
+    purpose: string | null;
+    artifacts: unknown[] | null;
+    hints: string | null;
+    is_followup?: boolean;
   }>;
 }
 
@@ -43,10 +44,11 @@ export interface WsExecutionDoneEvent {
   task_results: Array<Record<string, unknown>>;
 }
 
+// reports.summary / reports.report_text / reports.dfxml 와 동일 필드명
 export interface WsReportEvent {
   type: 'report_ready';
   summary: string;
-  report: string;
+  report_text: string;
   dfxml: string;
 }
 

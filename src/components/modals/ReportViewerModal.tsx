@@ -16,7 +16,7 @@ interface Props {
   onClose: () => void;
   reportData?: {
     summary: string;
-    report: string;
+    report_text: string;
     dfxml: string;
   } | null;
   taskResults?: TaskResult[];
@@ -32,7 +32,7 @@ export default function ReportViewerModal({
   diskImagePath,
 }: Props) {
   const summary = reportData?.summary || '';
-  const report = reportData?.report || '';
+  const report = reportData?.report_text || '';
   const results = taskResults || [];
 
   const handleDownload = () => {
