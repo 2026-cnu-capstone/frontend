@@ -92,12 +92,17 @@ export default function WorkflowCanvas({
 
   const getNodeStatus = useCallback(
     (i: number): WorkflowNodeData['nodeStatus'] => {
+      // 노드별 실행 결과가 있으면 그것을 우선한다 (정지/새로고침 후에도 완료 표시 유지)
+      const runStatus = stepRuns?.[i]?.status?.toLowerCase();
+      if (runStatus === 'success' || runStatus === 'done' || runStatus === 'completed') return 'done';
+      if (runStatus === 'running') return 'running';
+
       if (workflowState === 'done') return 'done';
       if (workflowState === 'running' && i < activeStep) return 'done';
       if (workflowState === 'running' && i === activeStep) return 'running';
       return 'approved';
     },
-    [workflowState, activeStep]
+    [workflowState, activeStep, stepRuns]
   );
 
   const buildNodeData = useCallback(
