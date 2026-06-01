@@ -40,50 +40,49 @@ export interface StrategyResponse {
   system_profile: string | null;
 }
 
+// /api/analysis/start, /strategy/approve 등 워크플로우 응답.
+// 백엔드는 plan_steps row 일부 + 표시용 step_index/name 을 합쳐 내려준다.
+// steps 는 GET /api/cases/:caseId/plan 응답과 동일한 CasePlanStepDTO 형식.
 export interface PlanResponse {
   plan_text: string;
-  steps: Array<{
-    index: number;
-    name: string;
-    mcp_server: string;
-    purpose: string;
-    artifacts: string[];
-    hints: string;
-  }>;
+  steps: CasePlanStepDTO[];
   plan_ready?: boolean;
 }
 
+// /api/analysis/:caseId/report 응답 (reports 행을 평탄화)
 export interface ReportResponse {
   summary: string;
-  report: string;
+  report_text: string;          // reports.report_text
   dfxml: string;
 }
 
+// cases 행 + 최신 analysis_sessions / reports 를 평탄화한 detail 응답
 export interface CaseDetailDTO {
   id: string;
   title: string;
-  analyst: string;
+  description: string | null;
+  analyst: string | null;
   status: string;
-  disk_image_path: string;
-  disk_image_format: string;
-  user_prompt: string;
-  system_profile: string | null;
-  analysis_strategy: string | null;
-  analysis_plan: string | null;
-  report_summary: string | null;
-  report_markdown: string | null;
-  report_dfxml: string | null;
+  disk_image_path: string | null;
+  user_prompt: string | null;
+  system_profile: string | null;        // analysis_sessions.system_profile
+  analysis_strategy: string | null;     // analysis_sessions.strategy
+  analysis_plan: string | null;         // analysis_sessions.plan_text
+  report_summary: string | null;        // reports.summary
+  report_text: string | null;           // reports.report_text
+  report_dfxml: string | null;          // reports.dfxml
   created_at: string;
   updated_at: string;
 }
 
+// plan_steps 행 + 표시용 name(derived).
 export interface CasePlanStepDTO {
   step_index: number;
-  name: string;
-  mcp_server: string;
-  purpose: string;
-  hints: string;
-  artifacts_hint: unknown[] | null;
+  name?: string;                // 백엔드 derive (DB 컬럼 없음)
+  mcp_server: string | null;
+  purpose: string | null;
+  hints: string | null;
+  artifacts: unknown[] | null;  // plan_steps.artifacts (jsonb)
   is_followup: boolean;
 }
 
@@ -122,17 +121,21 @@ export interface McpToolDTO {
   input_schema: Record<string, unknown> | null;
 }
 
+// task_results 행 + agent_run/plan_steps/dfxml_fragments 조인 결과.
 export interface CaseStepResultDTO {
-  step_index: number;
-  task_id: string;
-  agent_name: string;
-  status: string;
-  output: string;
-  elapsed_ms: number | null;
-  artifacts: unknown[] | null;
-  dfxml_fragment: string | null;
+  step_index: number;             // plan_steps.step_index (조인)
+  task_id: string;                // task_results.task_id
+  agent_name: string;             // agent_run.agent_name (조인)
+  status: string;                 // task_results.status
+  content: string | null;         // task_results.content
+  output: string | null;          // task_results.output
+  raw_output_ref: string | null;  // task_results.raw_output_ref
+  elapsed_ms: number | null;      // task_results.elapsed_ms
+  artifacts: unknown | null;      // task_results.artifacts (jsonb)
+  dfxml_fragment: string | null;  // dfxml_fragments.dfxml_fragment (조인)
   started_at: string;
   completed_at: string | null;
+  created_at: string;
 }
 
 export const api = {
@@ -178,11 +181,11 @@ export const api = {
     request<Array<Record<string, unknown>>>('/api/cases'),
 
   createCase: (data: {
-    name: string;
+    title: string;
     description?: string;
     analyst?: string;
     disk_image_path?: string;
-    disk_image_format?: string;
+    user_prompt?: string;
   }) =>
     request<Record<string, unknown>>('/api/cases', {
       method: 'POST',

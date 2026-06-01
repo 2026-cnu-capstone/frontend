@@ -1,37 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '@/lib/api';
+import { isWorkflowState } from '@/lib/workflow-state';
 import type { ActiveCase, Case, WorkflowState } from '@/types';
 
-const WORKFLOW_STATE_SET = new Set<WorkflowState>([
-  'idle',
-  'plan_thinking',
-  'strategy_review',
-  'strategy_edit_request',
-  'strategy_editing',
-  'mcp_plan_thinking',
-  'plan_requested',
-  'rejected',
-  'editing',
-  'approved',
-  'running',
-  'done',
-]);
-
 function normalizeWorkflowState(raw: unknown): WorkflowState | undefined {
-  if (typeof raw !== 'string') return undefined;
-  return WORKFLOW_STATE_SET.has(raw as WorkflowState) ? (raw as WorkflowState) : undefined;
+  return isWorkflowState(raw) ? raw : undefined;
 }
 
 function coerceCase(raw: Record<string, unknown>): Case {
-  const createdAt = String(raw.date ?? raw.created_at ?? new Date().toISOString().slice(0, 10));
-  const updatedAtRaw = raw.lastActivityAt ?? raw.updated_at;
+  const createdAt = String(raw.created_at ?? new Date().toISOString().slice(0, 10));
+  const updatedAtRaw = raw.updated_at;
   return {
     id: String(raw.id ?? ''),
-    title: String(raw.title ?? raw.name ?? ''),
+    title: String(raw.title ?? ''),
     analyst: String(raw.analyst ?? '-'),
-    size: String(raw.size ?? '-'),
     date: createdAt,
-    workflowState: normalizeWorkflowState(raw.workflowState ?? raw.status),
+    workflowState: normalizeWorkflowState(raw.status),
     lastActivityAt: updatedAtRaw ? String(updatedAtRaw) : undefined,
   };
 }
@@ -65,7 +49,7 @@ export function useCases() {
     const analyst = payload.analyst.trim();
     if (!title || !analyst) return null;
     try {
-      const created = await api.createCase({ name: title, analyst });
+      const created = await api.createCase({ title, analyst });
       const normalized = coerceCase(created);
       setCases(prev => [normalized, ...prev]);
       return normalized;

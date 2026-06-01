@@ -78,7 +78,10 @@ export async function simulateExecution(caseId: string) {
   }
 }
 
-export function emitReportReady(caseId: string, payload: { summary: string; report: string; dfxml: string }) {
+export function emitReportReady(
+  caseId: string,
+  payload: { summary: string; report_text: string; dfxml: string },
+) {
   broadcast(caseId, { type: 'report_ready', ...payload });
 }
 

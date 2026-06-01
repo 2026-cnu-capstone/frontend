@@ -10,9 +10,10 @@ export interface TaskResult {
   output?: string;
 }
 
+// reports 테이블과 동일한 필드명을 쓴다 (summary / report_text / dfxml).
 export interface ReportData {
   summary: string;
-  report: string;
+  report_text: string;
   dfxml: string;
 }
 
@@ -48,10 +49,10 @@ export function useReportRun() {
 
   const hydrateFromDetail = useCallback((detail: CaseDetailDTO) => {
     const summary = detail.report_summary ?? '';
-    const report = detail.report_markdown ?? '';
+    const report_text = detail.report_text ?? '';
     const dfxml = detail.report_dfxml ?? '';
-    if (summary || report || dfxml) {
-      setReportData({ summary, report, dfxml });
+    if (summary || report_text || dfxml) {
+      setReportData({ summary, report_text, dfxml });
       setReportState('done');
     }
   }, []);
@@ -83,8 +84,8 @@ export function useReportRun() {
       if (reportData?.summary) {
         lines.push('2. 분석 요약', '-'.repeat(30), reportData.summary, '');
       }
-      if (reportData?.report) {
-        lines.push(`${reportData.summary ? '3' : '2'}. 상세 보고서`, '-'.repeat(30), reportData.report);
+      if (reportData?.report_text) {
+        lines.push(`${reportData.summary ? '3' : '2'}. 상세 보고서`, '-'.repeat(30), reportData.report_text);
       }
       downloadTextFile(`${activeCase.id}_forensic_report.txt`, lines.join('\n'));
     },
