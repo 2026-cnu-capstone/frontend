@@ -138,6 +138,39 @@ export interface CaseStepResultDTO {
   created_at: string;
 }
 
+// ── 워크플로우 캔버스 노드/엣지 영속화 ──
+export interface WorkflowNodeDTO {
+  node_id: string;
+  x: number;
+  y: number;
+  label: string | null;
+  node_type: string | null;
+  status: string | null;
+}
+
+export interface WorkflowEdgeDTO {
+  edge_id: string;
+  source_node: string;
+  target_node: string;
+}
+
+export interface WorkflowDTO {
+  nodes: WorkflowNodeDTO[];
+  edges: WorkflowEdgeDTO[];
+}
+
+export interface WorkflowSavePayload {
+  nodes: Array<{
+    node_id: string;
+    x: number;
+    y: number;
+    label?: string | null;
+    node_type?: string | null;
+    status?: string | null;
+  }>;
+  edges: Array<{ edge_id: string; source_node: string; target_node: string }>;
+}
+
 export const api = {
   startAnalysis: (data: AnalysisStartRequest) =>
     request<StrategyResponse>('/api/analysis/start', {
@@ -220,4 +253,13 @@ export const api = {
   reconnectMcpServers: () =>
     request<McpServerDTO[]>('/api/mcp-servers/reconnect', { method: 'POST' }),
   getMcpTools: () => request<McpToolDTO[]>('/api/mcp-servers/tools'),
+
+  // ── 워크플로우 캔버스 ──
+  getWorkflow: (caseId: string) =>
+    request<WorkflowDTO>(`/api/cases/${caseId}/workflow`),
+  saveWorkflow: (caseId: string, data: WorkflowSavePayload) =>
+    request<{ nodes: number; edges: number }>(`/api/cases/${caseId}/workflow`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
 };
