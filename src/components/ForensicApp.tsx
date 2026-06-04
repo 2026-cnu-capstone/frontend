@@ -399,6 +399,7 @@ export default function ForensicApp() {
                 dfxmlFragments={workflow.nodeDfxmlFragments}
                 stepRuns={workflow.nodeStepRuns}
                 caseTitle={activeCase.title}
+                caseId={activeCase.id}
               />
             </div>
 

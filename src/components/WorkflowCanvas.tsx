@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -17,6 +17,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import WorkflowNode, { type WorkflowNodeType } from './nodes/WorkflowNode';
+import { api } from '@/lib/api';
 import type { PlanStep, StepRun, WorkflowNodeData } from '@/types';
 import { GitBranch } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
@@ -59,10 +60,11 @@ interface Props {
   dfxmlFragments?: Record<number, string>;
   stepRuns?: Record<number, StepRun>;
   caseTitle?: string;
+  caseId?: string;
 }
 
 export default function WorkflowCanvas({
-  editablePlan, workflowState, activeStep, selectedNode, onSelectNode, dfxmlFragments, stepRuns, caseTitle,
+  editablePlan, workflowState, activeStep, selectedNode, onSelectNode, dfxmlFragments, stepRuns, caseTitle, caseId,
 }: Props) {
   const { theme } = useTheme();
   const CANVAS_COLORS = theme === 'dark' ? DARK_CANVAS_COLORS : LIGHT_CANVAS_COLORS;
@@ -126,15 +128,61 @@ export default function WorkflowCanvas({
 
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
+  // 캔버스 최신 노드/엣지를 ref로 미러링 (드래그 저장 시 최신값 읽기)
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const edgesRef = useRef(edges);
+  edgesRef.current = edges;
+
+  // DB에 저장된 노드 위치 (node_id -> 좌표). 케이스 전환 시 로드.
+  const savedPosRef = useRef<Record<string, { x: number; y: number }>>({});
+
+  useEffect(() => {
+    savedPosRef.current = {};
+    if (!caseId) return;
+    let cancelled = false;
+    api.getWorkflow(caseId)
+      .then(wf => {
+        if (cancelled) return;
+        const m: Record<string, { x: number; y: number }> = {};
+        for (const n of wf.nodes) m[n.node_id] = { x: n.x, y: n.y };
+        savedPosRef.current = m;
+        // 이미 그려진 노드가 있으면 저장 위치를 즉시 반영
+        setNodes(prev => prev.map(node => (m[node.id] ? { ...node, position: m[node.id] } : node)));
+      })
+      .catch(e => console.error('getWorkflow failed:', e));
+    return () => { cancelled = true; };
+  }, [caseId, setNodes]);
+
+  // 드래그 종료 시 현재 노드/엣지를 통째로 저장
+  const handleNodeDragStop = useCallback(() => {
+    if (!caseId) return;
+    api.saveWorkflow(caseId, {
+      nodes: nodesRef.current.map(n => ({
+        node_id: n.id,
+        x: n.position.x,
+        y: n.position.y,
+        label: (n.data as WorkflowNodeData).title,
+        node_type: 'workflowNode',
+        status: (n.data as WorkflowNodeData).nodeStatus,
+      })),
+      edges: edgesRef.current.map(e => ({
+        edge_id: e.id,
+        source_node: e.source,
+        target_node: e.target,
+      })),
+    }).catch(e => console.error('saveWorkflow failed:', e));
+  }, [caseId]);
+
   // editablePlan이 변경되면 노드 수가 달라질 수 있으므로 위치 포함 재생성
   useEffect(() => {
     setNodes(prev => {
       if (prev.length !== editablePlan.length) {
-        // 노드 수 변경 → 기본 위치로 새로 생성
+        // 노드 수 변경 → 저장된 위치가 있으면 사용, 없으면 기본 배치
         return editablePlan.map((item, i) => ({
           id: `node-${i}`,
           type: 'workflowNode' as const,
-          position: { x: 40 + i * 380, y: 80 },
+          position: savedPosRef.current[`node-${i}`] ?? { x: 40 + i * 380, y: 80 },
           data: buildNodeData(item, i),
         }));
       }
@@ -200,6 +248,7 @@ export default function WorkflowCanvas({
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onNodeClick={handleNodeClick}
+        onNodeDragStop={handleNodeDragStop}
         fitView
         fitViewOptions={{ padding: 0.2, maxZoom: 0.95, minZoom: 0.4 }}
         minZoom={0.3}
