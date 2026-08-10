@@ -12,7 +12,9 @@ function coerceCase(raw: Record<string, unknown>): Case {
   const updatedAtRaw = raw.updated_at;
   return {
     id: String(raw.id ?? ''),
-    title: String(raw.title ?? ''),
+    // The case list/create API calls this field `name`, while the detail API
+    // and the frontend model call it `title`. Support both response shapes.
+    title: String(raw.name ?? raw.title ?? ''),
     analyst: String(raw.analyst ?? '-'),
     date: createdAt,
     workflowState: normalizeWorkflowState(raw.status),
